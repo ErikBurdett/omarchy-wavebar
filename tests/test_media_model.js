@@ -58,6 +58,8 @@ const spotifyDirect = player({
 assert.equal(model.duplicatePlayers(spotifyBridge, spotifyDirect), true)
 assert.deepEqual(model.focusedPlayers([spotifyBridge, spotifyDirect]), [spotifyDirect])
 assert.equal(model.selectFocusedPlayer(spotifyBridge, [spotifyBridge, spotifyDirect]), spotifyDirect)
+assert.equal(model.selectFromFocusedPlayers(spotifyBridge, [spotifyDirect]), spotifyDirect)
+assert.equal(model.selectFromFocusedPlayers(null, Array(17).fill(spotifyDirect)), null)
 
 const separateBrowser = player({
   dbusName: "org.mpris.MediaPlayer2.firefox.instance77",

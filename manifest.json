@@ -1,7 +1,7 @@
 {
   "schemaVersion": 1,
   "id": "io.github.erikburdett.wavebar",
-  "name": "WaveBar",
+  "name": "WaveBar: Waveform Media Controller",
   "version": "1.0.2",
   "author": "Erik Burdett",
   "license": "MIT",
@@ -20,6 +20,56 @@
     "description": "Now playing, live waveform, and MPRIS controls",
     "category": "Media",
     "allowMultiple": false,
-    "defaultSection": "left"
+    "defaultSection": "left",
+    "defaults": {
+      "showControls": true,
+      "showTitle": true,
+      "hideWhenPaused": false,
+      "waveformWidth": 72,
+      "maxTitleWidth": 150
+    },
+    "schema": [
+      {
+        "key": "showControls",
+        "type": "boolean",
+        "label": "Show playback controls",
+        "description": "Show previous, play/pause, and next controls in the bar.",
+        "defaultValue": true
+      },
+      {
+        "key": "showTitle",
+        "type": "boolean",
+        "label": "Show track title",
+        "description": "Show the scrolling track title beside the waveform on horizontal bars.",
+        "defaultValue": true
+      },
+      {
+        "key": "hideWhenPaused",
+        "type": "boolean",
+        "label": "Hide when paused",
+        "description": "Remove WaveBar from the bar while the selected media source is paused.",
+        "defaultValue": false
+      },
+      {
+        "key": "waveformWidth",
+        "type": "integer",
+        "label": "Waveform width",
+        "description": "Waveform width in pixels on horizontal bars.",
+        "min": 40,
+        "max": 240,
+        "step": 4,
+        "defaultValue": 72
+      },
+      {
+        "key": "maxTitleWidth",
+        "type": "integer",
+        "label": "Maximum title width",
+        "description": "Maximum scrolling-title width in pixels on horizontal bars.",
+        "min": 60,
+        "max": 320,
+        "step": 10,
+        "defaultValue": 150
+      }
+    ]
   }
 }

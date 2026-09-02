@@ -14,12 +14,13 @@ import ctypes
 import errno
 import math
 import os
+import selectors
 import signal
 import stat
 import subprocess
 import sys
 import time
-from collections.abc import Iterable
+from collections.abc import Callable, Iterable
 
 
 SAMPLE_RATE = 12_000
@@ -151,16 +152,46 @@ def emit(frame: list[float]) -> None:
     sys.stdout.buffer.flush()
 
 
-def read_exact(stream: object, size: int) -> bytes:
-    chunks: list[bytes] = []
-    remaining = size
-    while remaining > 0:
-        chunk = stream.read(remaining)  # type: ignore[attr-defined]
-        if not chunk:
-            break
-        chunks.append(chunk)
-        remaining -= len(chunk)
-    return b"".join(chunks)
+def drain_wakeup(wakeup_fd: int) -> None:
+    """Discard queued signal bytes without ever blocking."""
+    while True:
+        try:
+            if not os.read(wakeup_fd, 128):
+                return
+        except BlockingIOError:
+            return
+
+
+def read_exact_wakeable(
+    selector: selectors.BaseSelector,
+    stream_fd: int,
+    wakeup_fd: int,
+    size: int,
+    should_stop: Callable[[], bool],
+) -> tuple[bytes, bool]:
+    """Read one frame while remaining immediately wakeable for teardown.
+
+    CPython transparently retries interrupted reads (PEP 475), so a plain
+    blocking read cannot be the helper's shutdown boundary. The signal wakeup
+    pipe gives the selector an explicit event even when a hostile recorder
+    descendant ignores TERM and keeps the audio pipe open.
+    """
+    chunks = bytearray()
+    eof = False
+    while len(chunks) < size and not should_stop():
+        for key, _mask in selector.select(timeout=0.25):
+            if key.fd == wakeup_fd:
+                drain_wakeup(wakeup_fd)
+                if should_stop():
+                    return bytes(chunks), False
+                continue
+
+            chunk = os.read(stream_fd, size - len(chunks))
+            if not chunk:
+                eof = True
+                return bytes(chunks), eof
+            chunks.extend(chunk)
+    return bytes(chunks), eof
 
 
 def signal_process_group(process_group: int, signum: int) -> None:
@@ -300,11 +331,16 @@ def supervise_recorder(target: str, expected_parent: int, helper_path: str) -> i
 
 def run(target: str, bars: int, helper_path: str) -> int:
     trusted_executable(PYTHON_PATH)
+    trusted_executable(PW_RECORD_PATH)
     target = checked_target(target)
     enable_subreaper()
 
     stopping = False
     supervisor: subprocess.Popen[bytes] | None = None
+    stream_selector: selectors.BaseSelector | None = None
+    wakeup_read = -1
+    wakeup_write = -1
+    previous_wakeup = -1
 
     def stop(_signum: int, _frame: object) -> None:
         nonlocal stopping
@@ -312,36 +348,39 @@ def run(target: str, bars: int, helper_path: str) -> int:
         if supervisor is not None:
             signal_process_group(supervisor.pid, signal.SIGTERM)
 
-    # Install handlers before forking. If a stop arrives while Popen is still
-    # returning, stopping is recorded and applied immediately afterward.
-    signal.signal(signal.SIGTERM, stop)
-    signal.signal(signal.SIGINT, stop)
-    unblock_signals(signal.SIGTERM, signal.SIGINT)
-
-    command = [
-        PYTHON_PATH,
-        "-I",
-        "-S",
-        helper_path,
-        "--internal-mode",
-        INTERNAL_SUPERVISE,
-        "--expected-parent",
-        str(os.getpid()),
-        "--target",
-        target,
-    ]
-    supervisor = subprocess.Popen(
-        command,
-        stdin=subprocess.DEVNULL,
-        stdout=subprocess.PIPE,
-        stderr=subprocess.DEVNULL,
-        env=recorder_environment(),
-        close_fds=True,
-        start_new_session=True,
-        bufsize=0,
-    )
     unexpected_eof = False
     try:
+        # Install handlers and the nonblocking signal wakeup fd before
+        # forking. If a stop arrives while Popen is returning, the state and
+        # wake byte are both retained and applied as soon as setup resumes.
+        wakeup_read, wakeup_write = os.pipe2(os.O_CLOEXEC | os.O_NONBLOCK)
+        previous_wakeup = signal.set_wakeup_fd(wakeup_write)
+        signal.signal(signal.SIGTERM, stop)
+        signal.signal(signal.SIGINT, stop)
+        unblock_signals(signal.SIGTERM, signal.SIGINT)
+
+        command = [
+            PYTHON_PATH,
+            "-I",
+            "-S",
+            helper_path,
+            "--internal-mode",
+            INTERNAL_SUPERVISE,
+            "--expected-parent",
+            str(os.getpid()),
+            "--target",
+            target,
+        ]
+        supervisor = subprocess.Popen(
+            command,
+            stdin=subprocess.DEVNULL,
+            stdout=subprocess.PIPE,
+            stderr=subprocess.DEVNULL,
+            env=recorder_environment(),
+            close_fds=True,
+            start_new_session=True,
+            bufsize=0,
+        )
         if stopping:
             signal_process_group(supervisor.pid, signal.SIGTERM)
 
@@ -349,9 +388,21 @@ def run(target: str, bars: int, helper_path: str) -> int:
         samples_per_frame = max(bars, SAMPLE_RATE // FPS)
         byte_count = samples_per_frame * 2
         assert supervisor.stdout is not None
+        stream_fd = supervisor.stdout.fileno()
+        stream_selector = selectors.DefaultSelector()
+        stream_selector.register(stream_fd, selectors.EVENT_READ)
+        stream_selector.register(wakeup_read, selectors.EVENT_READ)
         while not stopping:
-            payload = read_exact(supervisor.stdout, byte_count)
-            if len(payload) < 2:
+            payload, eof = read_exact_wakeable(
+                stream_selector,
+                stream_fd,
+                wakeup_read,
+                byte_count,
+                lambda: stopping,
+            )
+            if stopping:
+                break
+            if eof and len(payload) < byte_count:
                 unexpected_eof = True
                 break
             if len(payload) % 2:
@@ -363,7 +414,24 @@ def run(target: str, bars: int, helper_path: str) -> int:
             previous = waveform_frame(pcm, bars, previous)
             emit(previous)
     finally:
-        reap_process_group(supervisor)
+        # Remove the group from the async signal handler before reaping its
+        # pinned leader. A later signal can no longer address that numeric
+        # PGID after wait() makes it reusable.
+        managed_supervisor = supervisor
+        supervisor = None
+        try:
+            if managed_supervisor is not None:
+                reap_process_group(managed_supervisor)
+        finally:
+            if stream_selector is not None:
+                stream_selector.close()
+            if managed_supervisor is not None and managed_supervisor.stdout is not None:
+                managed_supervisor.stdout.close()
+            if wakeup_write >= 0:
+                signal.set_wakeup_fd(previous_wakeup)
+                os.close(wakeup_write)
+            if wakeup_read >= 0:
+                os.close(wakeup_read)
     return 1 if unexpected_eof and not stopping else 0
 
 
@@ -395,6 +463,9 @@ def main() -> int:
                 return exec_recorder(args.target, args.expected_parent)
             return supervise_recorder(args.target, args.expected_parent, helper_path)
         return run(args.target, args.bars, helper_path)
+    except FileNotFoundError:
+        print("waveform helper dependency is unavailable", file=sys.stderr)
+        return 127
     except (OSError, RuntimeError, UnicodeError, ValueError):
         print("waveform helper safety check failed", file=sys.stderr)
         return 126

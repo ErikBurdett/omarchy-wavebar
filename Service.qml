@@ -7,12 +7,15 @@ Item {
   id: root
 
   property var shell: null
+  property var manifest: null
+  readonly property string pluginId: "io.github.erikburdett.wavebar"
   readonly property int sampleCount: 24
   property var samples: MediaModel.zeroSamples(sampleCount)
   property bool receivingFrames: false
   property string lastError: ""
   property string frameRemainder: ""
   property bool shuttingDown: false
+  property bool fatalHelperError: false
   readonly property bool helperRunning: visualizer.running
 
   readonly property var mediaService: shell ? shell.firstPartyServiceFor("omarchy.media") : null
@@ -25,8 +28,8 @@ Item {
   readonly property var sourcePlayers: inputRejected ? [] : rawSourcePlayers
   readonly property var playbackStreams: inputRejected ? [] : rawPlaybackStreams
   readonly property var focusedPlayers: MediaModel.focusedPlayers(sourcePlayers)
-  readonly property var activePlayer: MediaModel.selectFocusedPlayer(
-    mediaService ? mediaService.activePlayer : null, sourcePlayers)
+  readonly property var activePlayer: MediaModel.selectFromFocusedPlayers(
+    mediaService ? mediaService.activePlayer : null, focusedPlayers)
   readonly property bool hasMedia: activePlayer !== null
   readonly property bool playing: activePlayer ? !!activePlayer.isPlaying : false
   readonly property string title: MediaModel.playerTitle(activePlayer)
@@ -34,13 +37,17 @@ Item {
   readonly property string album: MediaModel.playerAlbum(activePlayer)
   readonly property string identity: MediaModel.playerIdentity(activePlayer)
 
-  readonly property var captureMatch: MediaModel.chooseCapture(activePlayer, playbackStreams)
+  // Matching player metadata to PipeWire nodes is the most expensive model
+  // pass. Reuse one bounded result for capture and volume instead of scoring
+  // the same collection twice on every property update.
+  readonly property var streamMatch: MediaModel.chooseVolumeNode(activePlayer, playbackStreams)
+  readonly property var captureMatch: !playing
+    ? ({ node: null, reason: "paused", score: 0 }) : streamMatch
   readonly property var captureNode: captureMatch ? captureMatch.node : null
   readonly property string captureTarget: MediaModel.captureTarget(captureNode)
   readonly property string captureReason: captureMatch ? String(captureMatch.reason || "unmatched") : "unmatched"
   readonly property bool shouldCapture: playing && captureTarget !== ""
-  readonly property var volumeMatch: MediaModel.chooseVolumeNode(activePlayer, playbackStreams)
-  readonly property var volumeNode: volumeMatch ? volumeMatch.node : null
+  readonly property var volumeNode: streamMatch ? streamMatch.node : null
   readonly property bool volumeSupported: !!(volumeNode && volumeNode.audio)
     || !!(activePlayer && activePlayer.volumeSupported
       && !MediaModel.isBrowserPlayer(activePlayer))
@@ -62,8 +69,13 @@ Item {
 
   // Use an argv array and an absolute path; Quickshell does not invoke a
   // shell for Process commands.
-  readonly property string helperPath: Quickshell.env("HOME")
-    + "/.config/omarchy/plugins/io.github.erikburdett.wavebar/waveform.py"
+  readonly property string pluginSourceDir: {
+    var source = manifest && manifest.__sourceDir ? String(manifest.__sourceDir) : ""
+    if (source.length > 0 && source.length <= 4096 && source.charAt(0) === "/")
+      return source.replace(/\/+$/, "")
+    return Quickshell.env("HOME") + "/.config/omarchy/plugins/" + pluginId
+  }
+  readonly property string helperPath: pluginSourceDir + "/waveform.py"
   readonly property string pythonPath: "/usr/bin/python3"
 
   function playerTitle(player) { return MediaModel.playerTitle(player) }
@@ -148,6 +160,7 @@ Item {
 
   function rejectProtocol(message) {
     lastError = message
+    fatalHelperError = true
     visualizer.running = false
     resetWaveform()
   }
@@ -183,6 +196,7 @@ Item {
 
   function restartVisualizer() {
     if (shuttingDown) return
+    fatalHelperError = false
     startTimer.stop()
     retryTimer.stop()
     visualizer.running = false
@@ -191,7 +205,7 @@ Item {
   }
 
   function startVisualizer() {
-    if (shuttingDown || !shouldCapture || visualizer.running) return false
+    if (shuttingDown || fatalHelperError || !shouldCapture || visualizer.running) return false
     visualizer.exec([
       pythonPath, "-I", "-S", helperPath,
       "--target", captureTarget, "--bars", String(sampleCount)
@@ -229,7 +243,8 @@ Item {
     id: watchdogTimer
     interval: 2000
     repeat: true
-    running: !root.shuttingDown && root.shouldCapture && !root.receivingFrames
+    running: !root.shuttingDown && !root.fatalHelperError
+      && root.shouldCapture && !root.receivingFrames
     onTriggered: root.startVisualizer()
   }
 
@@ -267,17 +282,27 @@ Item {
     // The helper sends only a fixed diagnostic on its own stderr and discards
     // pw-record stderr. Leaving this channel unbound avoids a resident parser.
 
-    onExited: function(exitCode, _exitStatus) {
+    onExited: function(exitCode) {
       root.receivingFrames = false
-      if (exitCode !== 0 && root.shouldCapture)
-        root.lastError = "Waveform helper exited with code " + String(exitCode)
-      if (!root.shuttingDown && root.shouldCapture && !startTimer.running)
+      if (exitCode !== 0 && root.shouldCapture) {
+        if (exitCode === 127) {
+          root.fatalHelperError = true
+          root.lastError = "Waveform dependencies are unavailable: python and pipewire-audio are required"
+        } else if (exitCode === 126) {
+          root.fatalHelperError = true
+          root.lastError = "Waveform helper rejected an unsafe executable or runtime"
+        } else if (!root.fatalHelperError) {
+          root.lastError = "Waveform helper exited with code " + String(exitCode)
+        }
+      }
+      if (!root.shuttingDown && !root.fatalHelperError
+          && root.shouldCapture && !startTimer.running)
         retryTimer.restart()
     }
   }
 
   IpcHandler {
-    target: "io.github.erikburdett.wavebar"
+    target: root.pluginId
 
     function status(): string {
       return JSON.stringify({
@@ -296,6 +321,7 @@ Item {
         lastError: root.lastError,
         helperPath: root.helperPath,
         helperRunning: root.helperRunning,
+        fatalHelperError: root.fatalHelperError,
         shuttingDown: root.shuttingDown,
         startPending: startTimer.running,
         retryPending: retryTimer.running,

@@ -1,4 +1,5 @@
 import QtQuick
+import QtQuick.Controls as QQC
 import Quickshell
 import qs.Commons
 import qs.Ui
@@ -50,6 +51,7 @@ Panel {
   function captureMessage() {
     if (!service) return "Media service is loading"
     if (service.inputRejected) return "Media inputs exceeded safety limits"
+    if (service.lastError) return service.lastError
     if (service.captureState === "live") return "Live · " + service.identity
     if (service.captureState === "connecting") return "Connecting to the media stream…"
     if (service.captureState === "ambiguous")
@@ -306,13 +308,24 @@ Panel {
             foreground: root.barForeground
           }
 
-          Repeater {
+          ListView {
+            id: sourceView
+            width: parent.width
+            height: Math.min(contentHeight, Style.space(210))
+            spacing: Style.space(4)
+            clip: true
+            boundsBehavior: Flickable.StopAtBounds
+            interactive: contentHeight > height
+
+            QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
+
             model: root.service
               ? root.service.focusedPlayers.slice(0, root.service.maxPlayers) : []
 
-            Button {
+            delegate: Button {
               id: sourceButton
               required property var modelData
+              required property int index
               readonly property var sourcePlayer: modelData
               readonly property bool isCurrent: root.player && root.service
                 && root.service.playerKey(root.player) === root.service.playerKey(sourcePlayer)
@@ -322,7 +335,8 @@ Panel {
               readonly property string sourceArtist: root.service
                 ? root.service.playerArtist(sourcePlayer) : ""
 
-              width: sourceList.width
+              width: ListView.view.width
+              height: sourceButton.implicitHeight
               clip: true
               leftAlign: true
               foreground: root.barForeground

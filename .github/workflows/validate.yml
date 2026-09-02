@@ -1,0 +1,30 @@
+name: Validate
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  unit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      - name: Validate manifest JSON
+        run: /usr/bin/python3 -m json.tool manifest.json >/dev/null
+
+      - name: Test manifest contract
+        run: /usr/bin/python3 tests/test_manifest.py
+
+      - name: Test recorder lifecycle and waveform model
+        run: /usr/bin/python3 tests/test_waveform.py
+
+      - name: Test bounded media matching
+        run: node tests/test_media_model.js
+
+      - name: Reject packaged symbolic links
+        run: test -z "$(find . -type l -print -quit)"

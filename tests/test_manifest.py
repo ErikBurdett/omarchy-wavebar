@@ -1,0 +1,61 @@
+import json
+from pathlib import Path
+import unittest
+
+
+PLUGIN_DIR = Path(__file__).resolve().parents[1]
+
+
+class ManifestTests(unittest.TestCase):
+    @classmethod
+    def setUpClass(cls) -> None:
+        cls.manifest = json.loads((PLUGIN_DIR / "manifest.json").read_text(encoding="utf-8"))
+
+    def test_identity_and_entry_points(self) -> None:
+        self.assertEqual(self.manifest["id"], "io.github.erikburdett.wavebar")
+        self.assertEqual(self.manifest["name"], "WaveBar: Waveform Media Controller")
+        self.assertEqual(set(self.manifest["kinds"]), {"service", "bar-widget"})
+        self.assertEqual(self.manifest["entryPoints"]["service"], "Service.qml")
+        self.assertEqual(self.manifest["entryPoints"]["barWidget"], "BarWidget.qml")
+
+    def test_widget_defaults_match_schema(self) -> None:
+        widget = self.manifest["barWidget"]
+        defaults = widget["defaults"]
+        schema = {field["key"]: field for field in widget["schema"]}
+        self.assertEqual(set(defaults), set(schema))
+        for key, value in defaults.items():
+            self.assertEqual(schema[key]["defaultValue"], value)
+
+        self.assertEqual(schema["waveformWidth"]["min"], 40)
+        self.assertEqual(schema["waveformWidth"]["max"], 240)
+        self.assertEqual(schema["maxTitleWidth"]["min"], 60)
+        self.assertEqual(schema["maxTitleWidth"]["max"], 320)
+
+    def test_preview_and_license_are_packaged(self) -> None:
+        self.assertTrue((PLUGIN_DIR / "preview.png").is_file())
+        self.assertTrue((PLUGIN_DIR / "LICENSE").is_file())
+        self.assertTrue((PLUGIN_DIR / "CHANGELOG.md").is_file())
+
+    def test_service_uses_installed_source_and_one_stream_match(self) -> None:
+        service = (PLUGIN_DIR / "Service.qml").read_text(encoding="utf-8")
+        self.assertIn("manifest.__sourceDir", service)
+        self.assertNotIn(
+            '"/.config/omarchy/plugins/io.github.erikburdett.wavebar/waveform.py"',
+            service,
+        )
+        self.assertEqual(service.count("MediaModel.chooseVolumeNode("), 1)
+        self.assertNotIn("MediaModel.chooseCapture(", service)
+        self.assertIn("!root.fatalHelperError", service)
+        self.assertIn("exitCode === 127", service)
+
+    def test_widget_keeps_runtime_bounds_and_vertical_layout(self) -> None:
+        widget = (PLUGIN_DIR / "BarWidget.qml").read_text(encoding="utf-8")
+        self.assertIn("Math.min(240", widget)
+        self.assertIn("Math.min(320", widget)
+        self.assertIn("width: parent.height", widget)
+        self.assertIn("height: parent.width", widget)
+        self.assertIn("visible: root.showControls", widget)
+
+
+if __name__ == "__main__":
+    unittest.main()

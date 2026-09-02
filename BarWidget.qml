@@ -11,9 +11,9 @@ BarWidget {
   readonly property var activePlayer: waveformService ? waveformService.activePlayer : null
   readonly property bool hasMedia: waveformService ? waveformService.hasMedia : false
   readonly property bool playing: waveformService ? waveformService.playing : false
-  readonly property bool showControls: Boolean(setting("showControls", true))
-  readonly property bool showTitle: Boolean(setting("showTitle", true))
-  readonly property bool hideWhenPaused: Boolean(setting("hideWhenPaused", false))
+  readonly property bool showControls: setting("showControls", true) === true
+  readonly property bool showTitle: setting("showTitle", true) === true
+  readonly property bool hideWhenPaused: setting("hideWhenPaused", false) === true
   readonly property real waveformWidth: Math.min(240,
     Math.max(40, Number(setting("waveformWidth", 72)) || 72))
   readonly property real maxTitleWidth: Math.min(320,
@@ -22,10 +22,13 @@ BarWidget {
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item
     ? panelLoader.item.popoutSwitchClosing === true : false
+  readonly property bool shouldShow: hasMedia && (!hideWhenPaused || playing)
 
-  visible: hasMedia && (!hideWhenPaused || playing)
-  implicitWidth: vertical ? barSize : horizontalContent.implicitWidth + Style.space(10)
-  implicitHeight: vertical ? verticalContent.implicitHeight + Style.space(10) : barSize
+  visible: shouldShow
+  implicitWidth: shouldShow
+    ? (vertical ? barSize : horizontalContent.implicitWidth + Style.space(10)) : 0
+  implicitHeight: shouldShow
+    ? (vertical ? verticalContent.implicitHeight + Style.space(10) : barSize) : 0
 
   function open() { if (panelLoader.item) panelLoader.item.open() }
   function close() { if (panelLoader.item) panelLoader.item.close() }
@@ -180,6 +183,7 @@ BarWidget {
     spacing: Style.space(3)
 
     Button {
+      visible: root.showControls
       enabled: root.actionEnabled("playPause")
       iconText: root.playing ? "󰏤" : "󰐊"
       foreground: root.bar ? root.bar.barForeground : Color.foreground
@@ -190,15 +194,21 @@ BarWidget {
       onClicked: if (root.waveformService) root.waveformService.runAction("playPause")
     }
 
-    Waveform {
+    Item {
       width: Style.space(20)
       height: Style.space(54)
-      rotation: 90
-      barCount: 13
-      samples: root.waveformService ? root.waveformService.samples : []
-      active: root.playing
-      live: root.waveformService ? root.waveformService.receivingFrames : false
-      foreground: root.bar ? root.bar.barForeground : Color.foreground
+
+      Waveform {
+        anchors.centerIn: parent
+        width: parent.height
+        height: parent.width
+        rotation: 90
+        barCount: 13
+        samples: root.waveformService ? root.waveformService.samples : []
+        active: root.playing
+        live: root.waveformService ? root.waveformService.receivingFrames : false
+        foreground: root.bar ? root.bar.barForeground : Color.foreground
+      }
 
       MouseArea {
         anchors.fill: parent

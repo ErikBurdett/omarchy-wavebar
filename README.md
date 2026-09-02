@@ -4,6 +4,8 @@ WaveBar is a standalone Omarchy bar plugin that combines a live audio
 waveform with focused MPRIS playback controls for browsers, Spotify, and other
 desktop media players.
 
+![WaveBar media panel showing a bounded source list and live waveform](./preview.png)
+
 ## Features
 
 - Shows meaningful browser and desktop-player media exposed through MPRIS.
@@ -15,7 +17,9 @@ desktop media players.
   endpoint ignores volume writes.
 - Selecting a media source immediately starts it and pauses the prior source.
 - Keeps long titles inside the widget and source list with horizontal scrolling.
+- Supports horizontal and vertical Omarchy bars.
 - Can live in the left, center, or right section of the Omarchy bar.
+- Exposes display options through Omarchy's native widget settings UI.
 
 ## How media filtering works
 
@@ -31,8 +35,18 @@ quiet rather than visualizing an unrelated game or tab.
 
 ## Install
 
+WaveBar relies on the `python` and `pipewire-audio` packages included with a
+standard Omarchy installation. The plugin does not install or update system
+packages.
+
 ```sh
 omarchy plugin add https://github.com/ErikBurdett/omarchy-wavebar.git --enable
+```
+
+## Update
+
+```sh
+omarchy plugin update io.github.erikburdett.wavebar
 ```
 
 ## Usage
@@ -69,7 +83,9 @@ omarchy bar move io.github.erikburdett.wavebar --before omarchy.tray
 The manifest uses `left` only as the initial default. Omarchy preserves the
 user's chosen placement in `~/.config/omarchy/shell.json`.
 
-Widget display settings can be added inline to the same entry:
+Use WaveBar's native widget settings in Omarchy to show or hide the playback
+controls and title, hide the widget while paused, or adjust the waveform and
+title widths. The equivalent inline configuration is:
 
 ```json
 {
@@ -89,8 +105,8 @@ Widget display settings can be added inline to the same entry:
 
 - Omarchy 4 / Quattro shell
 - Quickshell's MPRIS and PipeWire services
-- `pw-record` from PipeWire
-- Python 3 standard library
+- `/usr/bin/pw-record` from the `pipewire-audio` package
+- `/usr/bin/python3` and the Python 3 standard library from the `python` package
 
 WaveBar opens no network connections and rejects MPRIS-provided artwork rather
 than loading an untrusted URL or file. It uses only local MPRIS and PipeWire
@@ -102,12 +118,32 @@ a cleared environment and no shell. Its helper validates system-executable
 ownership, modes, and file capabilities; discards recorder diagnostics; and
 uses a race-checked Linux parent-death signal plus dedicated process-group
 supervisor and subreaper. Teardown always sends group-wide TERM then KILL and
-normal teardown waits for every adopted descendant. If the processor disappears
-unexpectedly, the parent-death-armed supervisor applies the same group-wide
-termination. Component destruction explicitly stops the helper. WaveBar
-requests no elevated privileges, writes no user configuration, and includes no
-installer. It runs inside the existing `omarchy-shell`; it never starts another
-Quickshell process.
+normal teardown waits for every adopted descendant. A nonblocking signal wakeup
+pipe prevents an interrupted PCM read from delaying that cleanup. If the helper
+disappears unexpectedly, the parent-death-armed supervisor applies the same
+group-wide termination. Unsafe-runtime and missing-dependency failures stop
+automatic retries and surface an actionable panel message. Component destruction
+explicitly stops the helper. WaveBar requests no elevated privileges, writes no
+user configuration, and includes no installer. It runs inside the existing
+`omarchy-shell`; it never starts another Quickshell process.
+
+The complete runtime process chain is:
+
+```text
+omarchy-shell
+└─ /usr/bin/python3 -I -S waveform.py
+   └─ /usr/bin/python3 -I -S waveform.py --internal-mode supervise
+      └─ /usr/bin/python3 -I -S waveform.py --internal-mode record
+         └─ execve /usr/bin/pw-record
+```
+
+Every edge uses an argument array or `execve`; no Unix shell is involved. The
+helper runs only while a playing MPRIS session has one safely matched local
+PipeWire stream. It opens no network connections; `pw-record` uses the local
+PipeWire session only. Audio is reduced to transient waveform levels, and no
+media or metadata is written to disk. Omarchy may persist settings a user
+deliberately changes through its normal widget settings UI; WaveBar itself does
+not modify `shell.json` or any other user configuration.
 
 ## Validate
 
@@ -119,10 +155,18 @@ omarchy plugin validate "$PLUGIN_DIR"
   "$PLUGIN_DIR/Panel.qml" "$PLUGIN_DIR/Waveform.qml" \
   "$PLUGIN_DIR/MarqueeText.qml"
 node "$PLUGIN_DIR/tests/test_media_model.js"
-python3 "$PLUGIN_DIR/tests/test_waveform.py"
+/usr/bin/python3 "$PLUGIN_DIR/tests/test_manifest.py"
+/usr/bin/python3 "$PLUGIN_DIR/tests/test_waveform.py"
 QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic \
-  qmltestrunner -input "$PLUGIN_DIR/tests" -import /usr/share/omarchy/shell
+  /usr/lib/qt6/bin/qmltestrunner -input "$PLUGIN_DIR/tests" \
+  -import /usr/share/omarchy/shell
 ```
+
+The repository also runs the manifest, Python, and JavaScript checks in GitHub
+Actions. See [tests/README.md](./tests/README.md) for the live process-lifecycle
+release check.
+
+Release changes are recorded in [CHANGELOG.md](./CHANGELOG.md).
 
 Inspect the live service:
 

@@ -190,8 +190,9 @@ function focusedPlayers(sourcePlayers) {
   return result
 }
 
-function selectFocusedPlayer(activePlayer, sourcePlayers) {
-  var players = focusedPlayers(sourcePlayers)
+function selectFromFocusedPlayers(activePlayer, focused) {
+  var players = Array.isArray(focused) ? focused : []
+  if (players.length > MAX_PLAYER_COUNT) return null
   if (isFocusedMediaPlayer(activePlayer)) {
     var activeKey = playerKey(activePlayer)
     for (var i = 0; i < players.length; i++) {
@@ -204,6 +205,10 @@ function selectFocusedPlayer(activePlayer, sourcePlayers) {
     if (players[j].isPlaying) return players[j]
   }
   return players.length > 0 ? players[0] : null
+}
+
+function selectFocusedPlayer(activePlayer, sourcePlayers) {
+  return selectFromFocusedPlayers(activePlayer, focusedPlayers(sourcePlayers))
 }
 
 function nodeProps(node) {
@@ -419,6 +424,7 @@ if (typeof module !== "undefined") {
     isBrowserPlayer: isBrowserPlayer,
     duplicatePlayers: duplicatePlayers,
     focusedPlayers: focusedPlayers,
+    selectFromFocusedPlayers: selectFromFocusedPlayers,
     selectFocusedPlayer: selectFocusedPlayer,
     scoreStream: scoreStream,
     chooseCapture: chooseCapture,
