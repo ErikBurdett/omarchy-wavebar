@@ -1,21 +1,24 @@
 #!/usr/bin/python3
-"""Stream a selected PipeWire node as normalized waveform frames.
+"""Stream a selected PipeWire node as bounded waveform frames.
 
-The helper never invokes a shell and never opens the network. It asks the
-PipeWire CLI already shipped by Omarchy to tap one explicitly selected node,
-then emits semicolon-delimited frames for Quickshell's SplitParser.
+The helper never invokes a shell or opens the network. A small internal
+supervisor keeps a stable process-group identity around pw-record, closes the
+Linux parent-death setup race, and guarantees TERM-to-KILL descendant cleanup.
 """
 
 from __future__ import annotations
 
 import argparse
 import array
+import ctypes
+import errno
 import math
 import os
 import signal
 import stat
 import subprocess
 import sys
+import time
 from collections.abc import Iterable
 
 
@@ -23,14 +26,44 @@ SAMPLE_RATE = 12_000
 FPS = 24
 PYTHON_PATH = "/usr/bin/python3"
 PW_RECORD_PATH = "/usr/bin/pw-record"
-SETPRIV_PATH = "/usr/bin/setpriv"
 MAX_TARGET_BYTES = 256
 MAX_FRAME_BYTES = 384
 TERM_TIMEOUT = 1.0
+PARENT_GONE_EXIT = 125
+PR_SET_PDEATHSIG = 1
+PR_SET_CHILD_SUBREAPER = 36
+INTERNAL_SUPERVISE = "supervise"
+INTERNAL_RECORD = "record"
+
+LIBC = ctypes.CDLL(None, use_errno=True)
+LIBC.prctl.restype = ctypes.c_int
+
+
+def _prctl(option: int, value: int) -> None:
+    if LIBC.prctl(option, value, 0, 0, 0) != 0:
+        error = ctypes.get_errno()
+        raise OSError(error, os.strerror(error))
+
+
+def arm_parent_death(expected_parent: int, signum: int) -> None:
+    """Arm PDEATHSIG, then close its non-retroactive parent-exit race."""
+    _prctl(PR_SET_PDEATHSIG, signum)
+    if os.getppid() != expected_parent:
+        os._exit(PARENT_GONE_EXIT)
+
+
+def enable_subreaper() -> None:
+    """Adopt orphaned descendants so this helper can reap the whole tree."""
+    _prctl(PR_SET_CHILD_SUBREAPER, 1)
+
+
+def unblock_signals(*signals: signal.Signals) -> None:
+    """Do not trust a GUI parent's inherited signal mask."""
+    signal.pthread_sigmask(signal.SIG_UNBLOCK, set(signals))
 
 
 def trusted_executable(path: str) -> str:
-    """Accept only root-controlled executables rooted in /usr/bin."""
+    """Accept only root-controlled, ordinary executables rooted in /usr/bin."""
     if not path.startswith("/usr/bin/") or os.path.dirname(path) != "/usr/bin":
         raise RuntimeError("untrusted executable path")
 
@@ -46,9 +79,22 @@ def trusted_executable(path: str) -> str:
         or not stat.S_ISREG(target.st_mode)
         or target.st_uid != 0
         or target.st_mode & 0o022
+        or target.st_mode & (stat.S_ISUID | stat.S_ISGID)
         or not target.st_mode & 0o111
     ):
         raise RuntimeError("untrusted executable ownership or mode")
+
+    # Linux clears PDEATHSIG when execing a file with capabilities, just as it
+    # does for setuid/setgid files. Reject that case explicitly.
+    try:
+        capabilities = os.getxattr(target_path, "security.capability", follow_symlinks=False)
+    except OSError as error:
+        no_attribute = {errno.ENODATA, getattr(errno, "ENOATTR", errno.ENODATA)}
+        if error.errno not in no_attribute:
+            raise
+    else:
+        if capabilities:
+            raise RuntimeError("executable capabilities are not allowed")
     return path
 
 
@@ -91,8 +137,6 @@ def waveform_frame(samples: Iterable[int], bars: int, previous: list[float]) -> 
     for index in range(bars):
         block = values[index * block_size : (index + 1) * block_size]
         peak = max((abs(value) for value in block), default=0) / 32768.0
-        # Suppress converter noise, then emphasize quiet music without making
-        # loud frames permanently pin the visualizer.
         normalized = 0.0 if peak < 0.004 else min(1.0, peak ** 0.55)
         prior = previous[index] if index < len(previous) else 0.0
         result.append(max(normalized, prior * 0.72))
@@ -119,38 +163,52 @@ def read_exact(stream: object, size: int) -> bytes:
     return b"".join(chunks)
 
 
-def signal_process_group(process: subprocess.Popen[bytes], signum: int) -> None:
-    if process.poll() is not None:
-        return
+def signal_process_group(process_group: int, signum: int) -> None:
+    """Signal the dedicated group without a racy liveness pre-check."""
+    if process_group <= 1:
+        raise RuntimeError("refusing unsafe process group")
     try:
-        os.killpg(process.pid, signum)
+        os.killpg(process_group, signum)
     except ProcessLookupError:
         pass
 
 
+def wait_term_window() -> None:
+    deadline = time.monotonic() + TERM_TIMEOUT
+    while True:
+        remaining = deadline - time.monotonic()
+        if remaining <= 0:
+            return
+        time.sleep(min(0.05, remaining))
+
+
+def reap_adopted_children() -> None:
+    """Wait until every descendant adopted through subreaper ownership exits."""
+    while True:
+        try:
+            os.waitpid(-1, 0)
+        except ChildProcessError:
+            return
+        except InterruptedError:
+            continue
+
+
 def reap_process_group(process: subprocess.Popen[bytes]) -> int:
-    """Terminate the recorder group, escalate to KILL, and always reap it."""
-    if process.poll() is None:
-        signal_process_group(process, signal.SIGTERM)
-    try:
-        return process.wait(timeout=TERM_TIMEOUT)
-    except subprocess.TimeoutExpired:
-        signal_process_group(process, signal.SIGKILL)
-        return process.wait()
+    """TERM, KILL, and reap a supervisor-pinned process group."""
+    process_group = process.pid
+    # Never poll or reap the group leader before the last group signal. The
+    # live (or unreaped) supervisor pins its PID/PGID, preventing reuse.
+    signal_process_group(process_group, signal.SIGTERM)
+    wait_term_window()
+    signal_process_group(process_group, signal.SIGKILL)
+    exit_code = process.wait()
+    reap_adopted_children()
+    return exit_code
 
 
-def run(target: str, bars: int) -> int:
-    trusted_executable(PYTHON_PATH)
-    recorder = trusted_executable(PW_RECORD_PATH)
-    setpriv = trusted_executable(SETPRIV_PATH)
-    target = checked_target(target)
-
-    command = [
-        setpriv,
-        "--pdeathsig",
-        "KILL",
-        "--",
-        recorder,
+def recorder_command(target: str) -> list[str]:
+    return [
+        PW_RECORD_PATH,
         "--raw",
         "--rate",
         str(SAMPLE_RATE),
@@ -164,7 +222,115 @@ def run(target: str, bars: int) -> int:
         target,
         "-",
     ]
-    process = subprocess.Popen(
+
+
+def exec_recorder(target: str, expected_parent: int) -> int:
+    """Race-safely arm parent death before replacing this process."""
+    arm_parent_death(expected_parent, signal.SIGKILL)
+    recorder = trusted_executable(PW_RECORD_PATH)
+    target = checked_target(target)
+    command = recorder_command(target)
+    command[0] = recorder
+    os.execve(recorder, command, recorder_environment())
+    return 126
+
+
+def supervise_recorder(target: str, expected_parent: int, helper_path: str) -> int:
+    """Stay as the dedicated group leader until every member is terminated."""
+    arm_parent_death(expected_parent, signal.SIGUSR1)
+    enable_subreaper()
+    trusted_executable(PYTHON_PATH)
+    target = checked_target(target)
+
+    tearing_down = False
+
+    def ignore_stop(_signum: int, _frame: object) -> None:
+        # The outer helper owns normal teardown. Remaining alive here keeps the
+        # group identity pinned until the final group-wide SIGKILL.
+        return
+
+    def parent_gone(_signum: int, _frame: object) -> None:
+        nonlocal tearing_down
+        if tearing_down:
+            return
+        tearing_down = True
+        process_group = os.getpgrp()
+        signal_process_group(process_group, signal.SIGTERM)
+        wait_term_window()
+        signal_process_group(process_group, signal.SIGKILL)
+
+    signal.signal(signal.SIGTERM, ignore_stop)
+    signal.signal(signal.SIGINT, ignore_stop)
+    signal.signal(signal.SIGUSR1, parent_gone)
+    unblock_signals(signal.SIGTERM, signal.SIGINT, signal.SIGUSR1)
+
+    command = [
+        PYTHON_PATH,
+        "-I",
+        "-S",
+        helper_path,
+        "--internal-mode",
+        INTERNAL_RECORD,
+        "--expected-parent",
+        str(os.getpid()),
+        "--target",
+        target,
+    ]
+    recorder = subprocess.Popen(
+        command,
+        stdin=subprocess.DEVNULL,
+        stdout=None,
+        stderr=subprocess.DEVNULL,
+        env=recorder_environment(),
+        close_fds=True,
+        start_new_session=False,
+        bufsize=0,
+    )
+
+    # The recorder inherited fd 1. Closing the supervisor's copy lets the
+    # outer helper observe EOF even though this stable group leader stays up.
+    os.close(sys.stdout.fileno())
+    recorder.wait()
+
+    # A recorder that exits first may leave descendants. Keep the supervisor
+    # alive while terminating the entire still-pinned group atomically.
+    parent_gone(signal.SIGCHLD, None)
+    return 0
+
+
+def run(target: str, bars: int, helper_path: str) -> int:
+    trusted_executable(PYTHON_PATH)
+    target = checked_target(target)
+    enable_subreaper()
+
+    stopping = False
+    supervisor: subprocess.Popen[bytes] | None = None
+
+    def stop(_signum: int, _frame: object) -> None:
+        nonlocal stopping
+        stopping = True
+        if supervisor is not None:
+            signal_process_group(supervisor.pid, signal.SIGTERM)
+
+    # Install handlers before forking. If a stop arrives while Popen is still
+    # returning, stopping is recorded and applied immediately afterward.
+    signal.signal(signal.SIGTERM, stop)
+    signal.signal(signal.SIGINT, stop)
+    unblock_signals(signal.SIGTERM, signal.SIGINT)
+
+    command = [
+        PYTHON_PATH,
+        "-I",
+        "-S",
+        helper_path,
+        "--internal-mode",
+        INTERNAL_SUPERVISE,
+        "--expected-parent",
+        str(os.getpid()),
+        "--target",
+        target,
+    ]
+    supervisor = subprocess.Popen(
         command,
         stdin=subprocess.DEVNULL,
         stdout=subprocess.PIPE,
@@ -174,27 +340,19 @@ def run(target: str, bars: int) -> int:
         start_new_session=True,
         bufsize=0,
     )
-
-    stopping = False
-
-    def stop(_signum: int, _frame: object) -> None:
-        nonlocal stopping
-        stopping = True
-        signal_process_group(process, signal.SIGTERM)
-
-    signal.signal(signal.SIGTERM, stop)
-    signal.signal(signal.SIGINT, stop)
-
-    previous = [0.0] * bars
-    samples_per_frame = max(bars, SAMPLE_RATE // FPS)
-    byte_count = samples_per_frame * 2
-
-    exit_code = 0
+    unexpected_eof = False
     try:
-        assert process.stdout is not None
+        if stopping:
+            signal_process_group(supervisor.pid, signal.SIGTERM)
+
+        previous = [0.0] * bars
+        samples_per_frame = max(bars, SAMPLE_RATE // FPS)
+        byte_count = samples_per_frame * 2
+        assert supervisor.stdout is not None
         while not stopping:
-            payload = read_exact(process.stdout, byte_count)
+            payload = read_exact(supervisor.stdout, byte_count)
             if len(payload) < 2:
+                unexpected_eof = True
                 break
             if len(payload) % 2:
                 payload = payload[:-1]
@@ -205,14 +363,20 @@ def run(target: str, bars: int) -> int:
             previous = waveform_frame(pcm, bars, previous)
             emit(previous)
     finally:
-        exit_code = reap_process_group(process)
-    return exit_code
+        reap_process_group(supervisor)
+    return 1 if unexpected_eof and not stopping else 0
 
 
 def parse_args() -> argparse.Namespace:
     parser = argparse.ArgumentParser()
     parser.add_argument("--target", required=True, help="PipeWire node name or serial")
     parser.add_argument("--bars", type=int, default=24)
+    parser.add_argument(
+        "--internal-mode",
+        choices=(INTERNAL_SUPERVISE, INTERNAL_RECORD),
+        help=argparse.SUPPRESS,
+    )
+    parser.add_argument("--expected-parent", type=int, default=0, help=argparse.SUPPRESS)
     return parser.parse_args()
 
 
@@ -221,8 +385,16 @@ def main() -> int:
     if not 4 <= args.bars <= 96:
         print("waveform helper rejected an invalid bar count", file=sys.stderr)
         return 2
+
+    helper_path = os.path.realpath(__file__)
     try:
-        return run(args.target, args.bars)
+        if args.internal_mode:
+            if args.expected_parent <= 1:
+                raise ValueError("invalid expected parent")
+            if args.internal_mode == INTERNAL_RECORD:
+                return exec_recorder(args.target, args.expected_parent)
+            return supervise_recorder(args.target, args.expected_parent, helper_path)
+        return run(args.target, args.bars, helper_path)
     except (OSError, RuntimeError, UnicodeError, ValueError):
         print("waveform helper safety check failed", file=sys.stderr)
         return 126

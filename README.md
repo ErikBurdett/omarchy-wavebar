@@ -90,7 +90,6 @@ Widget display settings can be added inline to the same entry:
 - Omarchy 4 / Quattro shell
 - Quickshell's MPRIS and PipeWire services
 - `pw-record` from PipeWire
-- `setpriv` from util-linux
 - Python 3 standard library
 
 WaveBar opens no network connections and rejects MPRIS-provided artwork rather
@@ -98,13 +97,17 @@ than loading an untrusted URL or file. It uses only local MPRIS and PipeWire
 services. Media collections, metadata fields, capture targets, waveform frames,
 and user-configurable widths all have explicit limits.
 
-The service invokes fixed `/usr/bin/python3`, `/usr/bin/setpriv`, and
-`/usr/bin/pw-record` paths with a cleared environment and no shell. Its helper
-validates system-executable ownership and modes, discards recorder diagnostics,
-and supervises the recorder in a separate process group with TERM-to-KILL
-cleanup and guaranteed reaping. WaveBar requests no elevated privileges, writes
-no user configuration, and includes no installer. It runs inside the existing
-`omarchy-shell`; it never starts another Quickshell process.
+The service invokes fixed `/usr/bin/python3` and `/usr/bin/pw-record` paths with
+a cleared environment and no shell. Its helper validates system-executable
+ownership, modes, and file capabilities; discards recorder diagnostics; and
+uses a race-checked Linux parent-death signal plus dedicated process-group
+supervisor and subreaper. Teardown always sends group-wide TERM then KILL and
+normal teardown waits for every adopted descendant. If the processor disappears
+unexpectedly, the parent-death-armed supervisor applies the same group-wide
+termination. Component destruction explicitly stops the helper. WaveBar
+requests no elevated privileges, writes no user configuration, and includes no
+installer. It runs inside the existing `omarchy-shell`; it never starts another
+Quickshell process.
 
 ## Validate
 

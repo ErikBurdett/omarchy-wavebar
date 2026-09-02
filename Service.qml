@@ -12,6 +12,8 @@ Item {
   property bool receivingFrames: false
   property string lastError: ""
   property string frameRemainder: ""
+  property bool shuttingDown: false
+  readonly property bool helperRunning: visualizer.running
 
   readonly property var mediaService: shell ? shell.firstPartyServiceFor("omarchy.media") : null
   readonly property int maxPlayers: MediaModel.maxPlayerCount()
@@ -134,6 +136,16 @@ Item {
     staleTimer.stop()
   }
 
+  function shutdown() {
+    if (shuttingDown) return
+    shuttingDown = true
+    startTimer.stop()
+    retryTimer.stop()
+    staleTimer.stop()
+    visualizer.running = false
+    resetWaveform()
+  }
+
   function rejectProtocol(message) {
     lastError = message
     visualizer.running = false
@@ -170,6 +182,7 @@ Item {
   }
 
   function restartVisualizer() {
+    if (shuttingDown) return
     startTimer.stop()
     retryTimer.stop()
     visualizer.running = false
@@ -178,7 +191,7 @@ Item {
   }
 
   function startVisualizer() {
-    if (!shouldCapture || visualizer.running) return false
+    if (shuttingDown || !shouldCapture || visualizer.running) return false
     visualizer.exec([
       pythonPath, "-I", "-S", helperPath,
       "--target", captureTarget, "--bars", String(sampleCount)
@@ -189,6 +202,7 @@ Item {
   onCaptureTargetChanged: restartVisualizer()
   onPlayingChanged: restartVisualizer()
   Component.onCompleted: restartVisualizer()
+  Component.onDestruction: root.shutdown()
 
   Timer {
     id: startTimer
@@ -215,7 +229,7 @@ Item {
     id: watchdogTimer
     interval: 2000
     repeat: true
-    running: root.shouldCapture && !root.receivingFrames
+    running: !root.shuttingDown && root.shouldCapture && !root.receivingFrames
     onTriggered: root.startVisualizer()
   }
 
@@ -257,7 +271,8 @@ Item {
       root.receivingFrames = false
       if (exitCode !== 0 && root.shouldCapture)
         root.lastError = "Waveform helper exited with code " + String(exitCode)
-      if (root.shouldCapture && !startTimer.running) retryTimer.restart()
+      if (!root.shuttingDown && root.shouldCapture && !startTimer.running)
+        retryTimer.restart()
     }
   }
 
@@ -280,7 +295,8 @@ Item {
         captureTarget: root.captureTarget,
         lastError: root.lastError,
         helperPath: root.helperPath,
-        helperRunning: visualizer.running,
+        helperRunning: root.helperRunning,
+        shuttingDown: root.shuttingDown,
         startPending: startTimer.running,
         retryPending: retryTimer.running,
         watchdogRunning: watchdogTimer.running
