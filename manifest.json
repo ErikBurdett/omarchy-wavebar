@@ -1,11 +1,11 @@
 {
   "schemaVersion": 1,
-  "id": "io.github.erikburdett.media-waveform",
-  "name": "Media Waveform",
+  "id": "io.github.erikburdett.wavebar",
+  "name": "WaveBar",
   "version": "1.0.0",
   "author": "Erik Burdett",
   "license": "MIT",
-  "description": "A media-focused MPRIS controller with a privacy-conscious per-stream PipeWire waveform.",
+  "description": "A waveform media controller focused on meaningful browser and desktop-player sessions.",
   "kinds": [
     "service",
     "bar-widget"
@@ -16,7 +16,7 @@
     "barWidget": "BarWidget.qml"
   },
   "barWidget": {
-    "displayName": "Media Waveform",
+    "displayName": "WaveBar",
     "description": "Now playing, live waveform, and MPRIS controls",
     "category": "Media",
     "allowMultiple": false,

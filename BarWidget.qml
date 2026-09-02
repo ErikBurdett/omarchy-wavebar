@@ -5,19 +5,12 @@ import qs.Ui
 
 BarWidget {
   id: root
-  moduleName: "io.github.erikburdett.media-waveform"
+  moduleName: "io.github.erikburdett.wavebar"
 
   readonly property var waveformService: bar && bar.shell ? bar.shell.serviceFor(moduleName) : null
   readonly property var activePlayer: waveformService ? waveformService.activePlayer : null
   readonly property bool hasMedia: waveformService ? waveformService.hasMedia : false
   readonly property bool playing: waveformService ? waveformService.playing : false
-  // Generic hosted-widget properties consumed by rosakodu.dock and similar
-  // containers. They do not introduce a runtime dependency on the dock.
-  readonly property string icon: playing ? "󰏤" : "󰐊"
-  readonly property string playIcon: icon
-  readonly property string displayText: waveformService ? waveformService.title : "Media"
-  readonly property bool active: playing
-  property alias panelLoader: panelLoader
   readonly property bool showControls: Boolean(setting("showControls", true))
   readonly property bool showTitle: Boolean(setting("showTitle", true))
   readonly property bool hideWhenPaused: Boolean(setting("hideWhenPaused", false))

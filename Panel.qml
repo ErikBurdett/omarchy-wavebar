@@ -5,14 +5,13 @@ import qs.Ui
 
 Panel {
   id: root
-  moduleName: "io.github.erikburdett.media-waveform"
+  moduleName: "io.github.erikburdett.wavebar"
   manageIpc: false
 
   property var anchorItem: null
   property var hostWidget: null
   property var service: null
   property real displayedPosition: 0
-  property bool centerOnBar: false
 
   readonly property var player: service ? service.activePlayer : null
   readonly property bool playing: service ? service.playing : false
@@ -78,7 +77,6 @@ Panel {
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(390))
     contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(620))
-    centerOnBar: root.centerOnBar
 
     PanelKeyCatcher {
       id: keyCatcher

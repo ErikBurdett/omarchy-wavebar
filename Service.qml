@@ -41,7 +41,7 @@ Item {
   // Use an argv array and an absolute path; Quickshell does not invoke a
   // shell for Process commands.
   readonly property string helperPath: Quickshell.env("HOME")
-    + "/.config/omarchy/plugins/io.github.erikburdett.media-waveform/waveform.py"
+    + "/.config/omarchy/plugins/io.github.erikburdett.wavebar/waveform.py"
 
   function playerKey(player) {
     return mediaService ? mediaService.playerKey(player) : MediaModel.playerKey(player)
@@ -184,7 +184,7 @@ Item {
   }
 
   IpcHandler {
-    target: "io.github.erikburdett.media-waveform"
+    target: "io.github.erikburdett.wavebar"
 
     function status(): string {
       return JSON.stringify({
