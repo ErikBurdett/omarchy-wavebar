@@ -12,6 +12,7 @@ desktop media players.
 - Visualizes only a confidently matched local PipeWire playback stream.
 - Provides previous, play/pause, next, seek, volume, and source controls.
 - Selecting a media source immediately starts it and pauses the prior source.
+- Keeps long titles inside the widget and source list with horizontal scrolling.
 - Can live in the left, center, or right section of the Omarchy bar.
 
 ## How media filtering works
@@ -86,11 +87,12 @@ Widget display settings can be added inline to the same entry:
 - `pw-record` from PipeWire
 - Python 3 standard library
 
-The helper runs as the current user, opens no network connection, invokes no
-shell, and requests no elevated privileges. It starts one `pw-record` child
-only while a confidently matched local media stream is playing. WaveBar runs
-inside the existing `omarchy-shell`; it never starts another Quickshell
-process.
+WaveBar contacts no API or service directly. It may load album artwork from
+URLs supplied by the active MPRIS player. Otherwise, it uses only local MPRIS
+and PipeWire services, launches its helper and `pw-record` without a shell,
+requests no elevated privileges, and does not write user configuration. The
+repository includes no installer. WaveBar runs inside the existing
+`omarchy-shell`; it never starts another Quickshell process.
 
 ## Validate
 
@@ -99,7 +101,8 @@ PLUGIN_DIR="$HOME/.config/omarchy/plugins/io.github.erikburdett.wavebar"
 omarchy plugin validate "$PLUGIN_DIR"
 /usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
   "$PLUGIN_DIR/Service.qml" "$PLUGIN_DIR/BarWidget.qml" \
-  "$PLUGIN_DIR/Panel.qml" "$PLUGIN_DIR/Waveform.qml"
+  "$PLUGIN_DIR/Panel.qml" "$PLUGIN_DIR/Waveform.qml" \
+  "$PLUGIN_DIR/MarqueeText.qml"
 node "$PLUGIN_DIR/tests/test_media_model.js"
 python3 "$PLUGIN_DIR/tests/test_waveform.py"
 ```

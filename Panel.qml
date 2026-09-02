@@ -319,19 +319,42 @@ Panel {
             model: root.service ? root.service.focusedPlayers : []
 
             Button {
+              id: sourceButton
               required property var modelData
               readonly property var sourcePlayer: modelData
               readonly property bool isCurrent: root.player && root.service
                 && root.service.playerKey(root.player) === root.service.playerKey(sourcePlayer)
+              readonly property string sourceTitle: sourcePlayer
+                ? (sourcePlayer.trackTitle || sourcePlayer.identity || "Media") : "Media"
 
               width: sourceList.width
+              clip: true
               leftAlign: true
               foreground: root.barForeground
               selected: isCurrent
               iconText: sourcePlayer && sourcePlayer.isPlaying ? "󰏤" : "󰐊"
-              text: sourcePlayer ? (sourcePlayer.trackTitle || sourcePlayer.identity || "Media") : "Media"
-              tooltipText: sourcePlayer && sourcePlayer.trackArtist ? sourcePlayer.trackArtist : ""
+              text: ""
+              tooltipText: sourceTitle + (sourcePlayer && sourcePlayer.trackArtist
+                ? " — " + sourcePlayer.trackArtist : "")
               onClicked: if (root.service) root.service.selectAndPlay(root.service.playerKey(sourcePlayer))
+
+              MarqueeText {
+                z: 1
+                anchors.left: parent.left
+                anchors.leftMargin: sourceButton.horizontalPadding + Style.space(22)
+                anchors.right: parent.right
+                anchors.rightMargin: sourceButton.horizontalPadding
+                anchors.verticalCenter: parent.verticalCenter
+                height: implicitHeight
+                text: sourceButton.sourceTitle
+                foreground: sourceButton.selected
+                  ? Style.selectedStateColor(root.barForeground, Color.accent)
+                  : root.barForeground
+                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                fontPixelSize: Style.font.bodySmall
+                fontBold: sourceButton.selected
+                active: sourceButton.hot || sourceButton.isCurrent
+              }
             }
           }
         }

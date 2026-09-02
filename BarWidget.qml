@@ -112,15 +112,15 @@ BarWidget {
           clip: true
           anchors.verticalCenter: parent.verticalCenter
 
-          Text {
+          MarqueeText {
             id: titleText
-            textFormat: Text.PlainText
-            text: root.waveformService ? root.waveformService.title : ""
-            color: root.bar ? root.bar.barForeground : Color.foreground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.bodySmall
-            elide: Text.ElideRight
             width: parent.width
+            height: implicitHeight
+            text: root.waveformService ? root.waveformService.title : ""
+            foreground: root.bar ? root.bar.barForeground : Color.foreground
+            fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+            fontPixelSize: Style.font.bodySmall
+            active: !root.opened
           }
         }
       }
