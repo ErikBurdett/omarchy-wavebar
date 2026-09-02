@@ -47,6 +47,15 @@ class ManifestTests(unittest.TestCase):
         self.assertNotIn("MediaModel.chooseCapture(", service)
         self.assertIn("!root.fatalHelperError", service)
         self.assertIn("exitCode === 127", service)
+        self.assertIn("clearEnvironment: true", service)
+        self.assertIn(
+            "visualizer.environment = sanitizedVisualizerEnvironment()", service
+        )
+        self.assertIn('"PATH": "/usr/bin"', service)
+        self.assertIn(
+            "visualizer.exited.connect(root.handleVisualizerExited)", service
+        )
+        self.assertNotIn("onExited:", service)
 
     def test_widget_keeps_runtime_bounds_and_vertical_layout(self) -> None:
         widget = (PLUGIN_DIR / "BarWidget.qml").read_text(encoding="utf-8")
@@ -55,6 +64,11 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("width: parent.height", widget)
         self.assertIn("height: parent.width", widget)
         self.assertIn("visible: root.showControls", widget)
+
+    def test_repeater_delegates_have_bound_component_behavior(self) -> None:
+        for filename in ("Panel.qml", "Waveform.qml"):
+            source = (PLUGIN_DIR / filename).read_text(encoding="utf-8")
+            self.assertTrue(source.startswith("pragma ComponentBehavior: Bound\n"))
 
 
 if __name__ == "__main__":

@@ -206,6 +206,10 @@ Item {
 
   function startVisualizer() {
     if (shuttingDown || fatalHelperError || !shouldCapture || visualizer.running) return false
+    // Set this immediately before every exec. Keeping the object behind a
+    // function avoids qmllint's QVariantMap/QVariantHash false positive while
+    // preserving Quickshell's documented Process environment semantics.
+    visualizer.environment = sanitizedVisualizerEnvironment()
     visualizer.exec([
       pythonPath, "-I", "-S", helperPath,
       "--target", captureTarget, "--bars", String(sampleCount)
@@ -213,9 +217,44 @@ Item {
     return true
   }
 
+  function sanitizedVisualizerEnvironment() {
+    return {
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "PATH": "/usr/bin",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONSAFEPATH": "1"
+    }
+  }
+
+  function handleVisualizerExited(exitCode) {
+    root.receivingFrames = false
+    if (exitCode !== 0 && root.shouldCapture) {
+      if (exitCode === 127) {
+        root.fatalHelperError = true
+        root.lastError = "Waveform dependencies are unavailable: python and pipewire-audio are required"
+      } else if (exitCode === 126) {
+        root.fatalHelperError = true
+        root.lastError = "Waveform helper rejected an unsafe executable or runtime"
+      } else if (!root.fatalHelperError) {
+        root.lastError = "Waveform helper exited with code " + String(exitCode)
+      }
+    }
+    if (!root.shuttingDown && !root.fatalHelperError
+        && root.shouldCapture && !startTimer.running)
+      retryTimer.restart()
+  }
+
   onCaptureTargetChanged: restartVisualizer()
   onPlayingChanged: restartVisualizer()
-  Component.onCompleted: restartVisualizer()
+  Component.onCompleted: {
+    // Connecting explicitly avoids a qmllint false positive caused by the
+    // Quickshell type description omitting QProcess::ExitStatus. Qt owns and
+    // disconnects this connection with the QML component.
+    visualizer.exited.connect(root.handleVisualizerExited)
+    restartVisualizer()
+  }
   Component.onDestruction: root.shutdown()
 
   Timer {
@@ -263,14 +302,6 @@ Item {
     ]
     running: false
     clearEnvironment: true
-    environment: ({
-      "LANG": "C.UTF-8",
-      "LC_ALL": "C.UTF-8",
-      "PATH": "/usr/bin",
-      "PYTHONDONTWRITEBYTECODE": "1",
-      "PYTHONNOUSERSITE": "1",
-      "PYTHONSAFEPATH": "1"
-    })
 
     stdout: SplitParser {
       // Empty-marker mode emits raw QProcess chunks and does not retain an
@@ -281,24 +312,6 @@ Item {
 
     // The helper sends only a fixed diagnostic on its own stderr and discards
     // pw-record stderr. Leaving this channel unbound avoids a resident parser.
-
-    onExited: function(exitCode) {
-      root.receivingFrames = false
-      if (exitCode !== 0 && root.shouldCapture) {
-        if (exitCode === 127) {
-          root.fatalHelperError = true
-          root.lastError = "Waveform dependencies are unavailable: python and pipewire-audio are required"
-        } else if (exitCode === 126) {
-          root.fatalHelperError = true
-          root.lastError = "Waveform helper rejected an unsafe executable or runtime"
-        } else if (!root.fatalHelperError) {
-          root.lastError = "Waveform helper exited with code " + String(exitCode)
-        }
-      }
-      if (!root.shuttingDown && !root.fatalHelperError
-          && root.shouldCapture && !startTimer.running)
-        retryTimer.restart()
-    }
   }
 
   IpcHandler {

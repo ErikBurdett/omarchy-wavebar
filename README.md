@@ -150,7 +150,10 @@ not modify `shell.json` or any other user configuration.
 ```sh
 PLUGIN_DIR="$HOME/.config/omarchy/plugins/io.github.erikburdett.wavebar"
 omarchy plugin validate "$PLUGIN_DIR"
-/usr/lib/qt6/bin/qmllint -I /usr/share/omarchy/shell \
+/usr/lib/qt6/bin/qmllint --silent --max-warnings 0 \
+  --missing-property info -I /usr/share/omarchy/shell \
+  -i /usr/share/omarchy/shell/Commons/qmldir \
+  -i /usr/share/omarchy/shell/Ui/qmldir \
   "$PLUGIN_DIR/Service.qml" "$PLUGIN_DIR/BarWidget.qml" \
   "$PLUGIN_DIR/Panel.qml" "$PLUGIN_DIR/Waveform.qml" \
   "$PLUGIN_DIR/MarqueeText.qml"
@@ -161,6 +164,16 @@ QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic \
   /usr/lib/qt6/bin/qmltestrunner -input "$PLUGIN_DIR/tests" \
   -import /usr/share/omarchy/shell
 ```
+
+The explicit `qmldir` inputs teach standalone `qmllint` about Quickshell's
+root-relative `qs.Commons` and `qs.Ui` imports. Omarchy deliberately exposes
+the injected bar host and nested style token objects as `QtObject`, so their
+runtime members have no concrete type for standalone tooling; the same
+`missing-property` diagnostics occur in Omarchy's bundled widgets. The command
+therefore keeps that single category as informational and hides informational
+output, while `--max-warnings 0` makes every other warning fail validation.
+WaveBar's own delegate scopes use `ComponentBehavior: Bound`, so genuine
+unqualified-access warnings are not exempted.
 
 The repository also runs the manifest, Python, and JavaScript checks in GitHub
 Actions. See [tests/README.md](./tests/README.md) for the live process-lifecycle

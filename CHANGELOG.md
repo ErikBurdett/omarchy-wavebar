@@ -49,3 +49,6 @@
   leader-exits-first, blocked-read, TERM-to-KILL, and descendant-reaping tests.
 - Added a least-privilege validation workflow with its external action pinned
   to a full commit SHA.
+- Made standalone QML linting deterministic: Omarchy modules are supplied
+  explicitly, dynamic host-property diagnostics are narrowly informational,
+  every other warning is fatal, and delegate scopes are compiler-bound.
