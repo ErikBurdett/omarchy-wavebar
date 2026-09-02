@@ -1,0 +1,25 @@
+{
+  "schemaVersion": 1,
+  "id": "io.github.erikburdett.media-waveform",
+  "name": "Media Waveform",
+  "version": "1.0.0",
+  "author": "Erik Burdett",
+  "license": "MIT",
+  "description": "A media-focused MPRIS controller with a privacy-conscious per-stream PipeWire waveform.",
+  "kinds": [
+    "service",
+    "bar-widget"
+  ],
+  "keepLoaded": true,
+  "entryPoints": {
+    "service": "Service.qml",
+    "barWidget": "BarWidget.qml"
+  },
+  "barWidget": {
+    "displayName": "Media Waveform",
+    "description": "Now playing, live waveform, and MPRIS controls",
+    "category": "Media",
+    "allowMultiple": false,
+    "defaultSection": "left"
+  }
+}
