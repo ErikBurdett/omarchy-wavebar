@@ -49,6 +49,7 @@ Panel {
 
   function captureMessage() {
     if (!service) return "Media service is loading"
+    if (service.inputRejected) return "Media inputs exceeded safety limits"
     if (service.captureState === "live") return "Live · " + service.identity
     if (service.captureState === "connecting") return "Connecting to the media stream…"
     if (service.captureState === "ambiguous")
@@ -111,18 +112,8 @@ Panel {
             borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
             clip: true
 
-            Image {
-              anchors.fill: parent
-              anchors.margins: Style.space(2)
-              asynchronous: true
-              fillMode: Image.PreserveAspectCrop
-              source: root.service ? root.service.artUrl : ""
-              visible: source !== ""
-            }
-
             Text {
               anchors.centerIn: parent
-              visible: !root.service || root.service.artUrl === ""
               text: "󰝚"
               color: root.barForeground
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
@@ -276,7 +267,7 @@ Panel {
 
         Row {
           width: parent.width
-          visible: root.player && root.player.volumeSupported
+          visible: root.service && root.service.volumeSupported
           spacing: Style.space(8)
 
           Text {
@@ -293,7 +284,7 @@ Panel {
             minimum: 0
             maximum: 1
             step: 0.05
-            value: root.player ? root.player.volume : 0
+            value: root.service ? root.service.volume : 0
             onMoved: function(value) { if (root.service) root.service.setVolume(value) }
             onReleased: function(value) { if (root.service) root.service.setVolume(value) }
           }
@@ -316,7 +307,8 @@ Panel {
           }
 
           Repeater {
-            model: root.service ? root.service.focusedPlayers : []
+            model: root.service
+              ? root.service.focusedPlayers.slice(0, root.service.maxPlayers) : []
 
             Button {
               id: sourceButton
@@ -324,8 +316,11 @@ Panel {
               readonly property var sourcePlayer: modelData
               readonly property bool isCurrent: root.player && root.service
                 && root.service.playerKey(root.player) === root.service.playerKey(sourcePlayer)
-              readonly property string sourceTitle: sourcePlayer
-                ? (sourcePlayer.trackTitle || sourcePlayer.identity || "Media") : "Media"
+              readonly property string sourceTitle: root.service
+                ? (root.service.playerTitle(sourcePlayer)
+                  || root.service.playerIdentity(sourcePlayer) || "Media") : "Media"
+              readonly property string sourceArtist: root.service
+                ? root.service.playerArtist(sourcePlayer) : ""
 
               width: sourceList.width
               clip: true
@@ -334,8 +329,7 @@ Panel {
               selected: isCurrent
               iconText: sourcePlayer && sourcePlayer.isPlaying ? "󰏤" : "󰐊"
               text: ""
-              tooltipText: sourceTitle + (sourcePlayer && sourcePlayer.trackArtist
-                ? " — " + sourcePlayer.trackArtist : "")
+              tooltipText: sourceTitle + (sourceArtist ? " — " + sourceArtist : "")
               onClicked: if (root.service) root.service.selectAndPlay(root.service.playerKey(sourcePlayer))
 
               MarqueeText {

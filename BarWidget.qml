@@ -14,8 +14,10 @@ BarWidget {
   readonly property bool showControls: Boolean(setting("showControls", true))
   readonly property bool showTitle: Boolean(setting("showTitle", true))
   readonly property bool hideWhenPaused: Boolean(setting("hideWhenPaused", false))
-  readonly property real waveformWidth: Math.max(40, Number(setting("waveformWidth", 72)) || 72)
-  readonly property real maxTitleWidth: Math.max(60, Number(setting("maxTitleWidth", 150)) || 150)
+  readonly property real waveformWidth: Math.min(240,
+    Math.max(40, Number(setting("waveformWidth", 72)) || 72))
+  readonly property real maxTitleWidth: Math.min(320,
+    Math.max(60, Number(setting("maxTitleWidth", 150)) || 150))
 
   readonly property bool opened: panelLoader.item ? panelLoader.item.opened === true : false
   readonly property bool popoutSwitchClosing: panelLoader.item
@@ -97,7 +99,7 @@ BarWidget {
         Waveform {
           width: root.waveformWidth
           height: Style.space(18)
-          barCount: Math.max(10, Math.round(width / 4))
+          barCount: Math.min(48, Math.max(10, Math.round(width / 4)))
           samples: root.waveformService ? root.waveformService.samples : []
           active: root.playing
           live: root.waveformService ? root.waveformService.receivingFrames : false

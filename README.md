@@ -11,6 +11,8 @@ desktop media players.
 - Ignores games, notification sounds, and generic application audio.
 - Visualizes only a confidently matched local PipeWire playback stream.
 - Provides previous, play/pause, next, seek, volume, and source controls.
+- Controls the matched local PipeWire stream volume for browsers whose MPRIS
+  endpoint ignores volume writes.
 - Selecting a media source immediately starts it and pauses the prior source.
 - Keeps long titles inside the widget and source list with horizontal scrolling.
 - Can live in the left, center, or right section of the Omarchy bar.
@@ -80,18 +82,28 @@ Widget display settings can be added inline to the same entry:
 }
 ```
 
+`waveformWidth` is constrained to 40–240 pixels and `maxTitleWidth` to
+60–320 pixels.
+
 ## Dependencies and security
 
 - Omarchy 4 / Quattro shell
 - Quickshell's MPRIS and PipeWire services
 - `pw-record` from PipeWire
+- `setpriv` from util-linux
 - Python 3 standard library
 
-WaveBar contacts no API or service directly. It may load album artwork from
-URLs supplied by the active MPRIS player. Otherwise, it uses only local MPRIS
-and PipeWire services, launches its helper and `pw-record` without a shell,
-requests no elevated privileges, and does not write user configuration. The
-repository includes no installer. WaveBar runs inside the existing
+WaveBar opens no network connections and rejects MPRIS-provided artwork rather
+than loading an untrusted URL or file. It uses only local MPRIS and PipeWire
+services. Media collections, metadata fields, capture targets, waveform frames,
+and user-configurable widths all have explicit limits.
+
+The service invokes fixed `/usr/bin/python3`, `/usr/bin/setpriv`, and
+`/usr/bin/pw-record` paths with a cleared environment and no shell. Its helper
+validates system-executable ownership and modes, discards recorder diagnostics,
+and supervises the recorder in a separate process group with TERM-to-KILL
+cleanup and guaranteed reaping. WaveBar requests no elevated privileges, writes
+no user configuration, and includes no installer. It runs inside the existing
 `omarchy-shell`; it never starts another Quickshell process.
 
 ## Validate
@@ -105,6 +117,8 @@ omarchy plugin validate "$PLUGIN_DIR"
   "$PLUGIN_DIR/MarqueeText.qml"
 node "$PLUGIN_DIR/tests/test_media_model.js"
 python3 "$PLUGIN_DIR/tests/test_waveform.py"
+QT_QPA_PLATFORM=offscreen QT_QPA_PLATFORMTHEME=generic \
+  qmltestrunner -input "$PLUGIN_DIR/tests" -import /usr/share/omarchy/shell
 ```
 
 Inspect the live service:

@@ -11,27 +11,47 @@ Item {
   property var samples: MediaModel.zeroSamples(sampleCount)
   property bool receivingFrames: false
   property string lastError: ""
+  property string frameRemainder: ""
 
   readonly property var mediaService: shell ? shell.firstPartyServiceFor("omarchy.media") : null
-  readonly property var sourcePlayers: mediaService ? mediaService.sourcePlayers : []
+  readonly property int maxPlayers: MediaModel.maxPlayerCount()
+  readonly property int maxStreams: MediaModel.maxStreamCount()
+  readonly property var rawSourcePlayers: mediaService ? mediaService.sourcePlayers : []
+  readonly property var rawPlaybackStreams: mediaService ? mediaService.playbackStreams : []
+  readonly property bool inputRejected: MediaModel.inputsOversized(
+    rawSourcePlayers, rawPlaybackStreams)
+  readonly property var sourcePlayers: inputRejected ? [] : rawSourcePlayers
+  readonly property var playbackStreams: inputRejected ? [] : rawPlaybackStreams
   readonly property var focusedPlayers: MediaModel.focusedPlayers(sourcePlayers)
   readonly property var activePlayer: MediaModel.selectFocusedPlayer(
     mediaService ? mediaService.activePlayer : null, sourcePlayers)
   readonly property bool hasMedia: activePlayer !== null
   readonly property bool playing: activePlayer ? !!activePlayer.isPlaying : false
-  readonly property string title: activePlayer ? String(activePlayer.trackTitle || "") : ""
-  readonly property string artist: activePlayer ? String(activePlayer.trackArtist || "") : ""
-  readonly property string album: activePlayer ? String(activePlayer.trackAlbum || "") : ""
-  readonly property string identity: activePlayer ? MediaModel.playerLabel(activePlayer) : ""
-  readonly property string artUrl: activePlayer ? String(activePlayer.trackArtUrl || "") : ""
+  readonly property string title: MediaModel.playerTitle(activePlayer)
+  readonly property string artist: MediaModel.playerArtist(activePlayer)
+  readonly property string album: MediaModel.playerAlbum(activePlayer)
+  readonly property string identity: MediaModel.playerIdentity(activePlayer)
 
-  readonly property var playbackStreams: mediaService ? mediaService.playbackStreams : []
   readonly property var captureMatch: MediaModel.chooseCapture(activePlayer, playbackStreams)
   readonly property var captureNode: captureMatch ? captureMatch.node : null
-  readonly property string captureTarget: captureNode ? String(captureNode.name || "") : ""
+  readonly property string captureTarget: MediaModel.captureTarget(captureNode)
   readonly property string captureReason: captureMatch ? String(captureMatch.reason || "unmatched") : "unmatched"
   readonly property bool shouldCapture: playing && captureTarget !== ""
-  readonly property string captureState: !hasMedia ? "no-media"
+  readonly property var volumeMatch: MediaModel.chooseVolumeNode(activePlayer, playbackStreams)
+  readonly property var volumeNode: volumeMatch ? volumeMatch.node : null
+  readonly property bool volumeSupported: !!(volumeNode && volumeNode.audio)
+    || !!(activePlayer && activePlayer.volumeSupported
+      && !MediaModel.isBrowserPlayer(activePlayer))
+  readonly property real volume: {
+    var value = volumeNode && volumeNode.audio
+      ? Number(volumeNode.audio.volume)
+      : activePlayer ? Number(activePlayer.volume) : 0
+    return isFinite(value) ? Math.max(0, Math.min(1, value)) : 0
+  }
+  readonly property string volumeBackend: volumeNode && volumeNode.audio
+    ? "pipewire" : volumeSupported ? "mpris" : "unavailable"
+  readonly property string captureState: inputRejected ? "input-rejected"
+    : !hasMedia ? "no-media"
     : !playing ? "paused"
     : receivingFrames ? "live"
     : captureReason === "ambiguous" ? "ambiguous"
@@ -42,37 +62,46 @@ Item {
   // shell for Process commands.
   readonly property string helperPath: Quickshell.env("HOME")
     + "/.config/omarchy/plugins/io.github.erikburdett.wavebar/waveform.py"
+  readonly property string pythonPath: "/usr/bin/python3"
+
+  function playerTitle(player) { return MediaModel.playerTitle(player) }
+  function playerArtist(player) { return MediaModel.playerArtist(player) }
+  function playerIdentity(player) { return MediaModel.playerIdentity(player) }
 
   function playerKey(player) {
-    return mediaService ? mediaService.playerKey(player) : MediaModel.playerKey(player)
+    return MediaModel.playerKey(player)
   }
 
   function runAction(action) {
     if (!mediaService || !activePlayer) return false
-    return mediaService.runAction(action, false, playerKey(activePlayer))
+    var key = playerKey(activePlayer)
+    return key !== "" && mediaService.runAction(action, false, key)
   }
 
   function selectPlayer(key) {
     if (!mediaService) return false
-    return mediaService.selectPlayer(key)
+    var safeKey = MediaModel.playerKey({ dbusName: key })
+    return safeKey !== "" && mediaService.selectPlayer(safeKey)
   }
 
   // Clicking a source is an explicit playback request. Start that source even
   // when every player is paused, then pause the previously playing source so
   // switching does not leave two media sessions playing at once.
   function selectAndPlay(key) {
-    if (!mediaService) return false
+    if (!mediaService || inputRejected) return false
 
-    var next = mediaService.playerForKey(key)
+    var safeKey = MediaModel.playerKey({ dbusName: key })
+    if (safeKey === "") return false
+    var next = mediaService.playerForKey(safeKey)
     if (!next || !MediaModel.isFocusedMediaPlayer(next)) return false
 
     var current = activePlayer
     var currentKey = playerKey(current)
     var currentWasPlaying = current && current.isPlaying
-    if (!mediaService.selectPlayer(key)) return false
+    if (!mediaService.selectPlayer(safeKey)) return false
 
-    var started = next.isPlaying || mediaService.runAction("play", false, key)
-    if (started && currentWasPlaying && currentKey !== key)
+    var started = next.isPlaying || mediaService.runAction("play", false, safeKey)
+    if (started && currentWasPlaying && currentKey !== safeKey)
       mediaService.pausePlayer(current)
     return started
   }
@@ -86,25 +115,58 @@ Item {
   }
 
   function setVolume(value) {
+    var next = Math.max(0, Math.min(1, Number(value) || 0))
+    if (volumeNode && volumeNode.audio) {
+      volumeNode.audio.volume = next
+      return true
+    }
     var player = activePlayer
-    if (!player || !player.volumeSupported) return false
-    player.volume = Math.max(0, Math.min(1, Number(value) || 0))
+    if (!player || !player.volumeSupported || MediaModel.isBrowserPlayer(player))
+      return false
+    player.volume = next
     return true
   }
 
   function resetWaveform() {
     samples = MediaModel.zeroSamples(sampleCount)
     receivingFrames = false
+    frameRemainder = ""
     staleTimer.stop()
   }
 
+  function rejectProtocol(message) {
+    lastError = message
+    visualizer.running = false
+    resetWaveform()
+  }
+
+  function consumeChunk(chunk) {
+    var framed = MediaModel.frameChunk(frameRemainder, chunk)
+    if (!framed.ok) {
+      rejectProtocol("Waveform output exceeded the protocol limit")
+      return
+    }
+    frameRemainder = framed.remainder
+    for (var i = 0; i < framed.frames.length; i++) {
+      if (!consumeFrame(framed.frames[i])) return
+    }
+  }
+
   function consumeFrame(line) {
+    if (String(line || "").length > MediaModel.maxFrameChars()) {
+      rejectProtocol("Waveform frame exceeded the protocol limit")
+      return false
+    }
     var parsed = MediaModel.parseFrame(line, sampleCount)
-    if (!parsed) return
+    if (!parsed) {
+      rejectProtocol("Waveform helper emitted an invalid frame")
+      return false
+    }
     samples = parsed
     receivingFrames = true
     lastError = ""
     staleTimer.restart()
+    return true
   }
 
   function restartVisualizer() {
@@ -117,7 +179,10 @@ Item {
 
   function startVisualizer() {
     if (!shouldCapture || visualizer.running) return false
-    visualizer.exec([helperPath, "--target", captureTarget, "--bars", String(sampleCount)])
+    visualizer.exec([
+      pythonPath, "-I", "-S", helperPath,
+      "--target", captureTarget, "--bars", String(sampleCount)
+    ])
     return true
   }
 
@@ -163,22 +228,35 @@ Item {
 
   Process {
     id: visualizer
-    command: [root.helperPath, "--target", root.captureTarget, "--bars", String(root.sampleCount)]
+    command: [
+      root.pythonPath, "-I", "-S", root.helperPath,
+      "--target", root.captureTarget, "--bars", String(root.sampleCount)
+    ]
     running: false
+    clearEnvironment: true
+    environment: ({
+      "LANG": "C.UTF-8",
+      "LC_ALL": "C.UTF-8",
+      "PATH": "/usr/bin",
+      "PYTHONDONTWRITEBYTECODE": "1",
+      "PYTHONNOUSERSITE": "1",
+      "PYTHONSAFEPATH": "1"
+    })
 
     stdout: SplitParser {
-      onRead: function(line) { root.consumeFrame(line) }
+      // Empty-marker mode emits raw QProcess chunks and does not retain an
+      // unterminated line. WaveBar applies its own strict framing ceiling.
+      splitMarker: ""
+      onRead: function(chunk) { root.consumeChunk(chunk) }
     }
 
-    stderr: SplitParser {
-      onRead: function(line) {
-        var message = String(line || "").trim()
-        if (message !== "") root.lastError = message
-      }
-    }
+    // The helper sends only a fixed diagnostic on its own stderr and discards
+    // pw-record stderr. Leaving this channel unbound avoids a resident parser.
 
-    onExited: function(_exitCode, _exitStatus) {
+    onExited: function(exitCode, _exitStatus) {
       root.receivingFrames = false
+      if (exitCode !== 0 && root.shouldCapture)
+        root.lastError = "Waveform helper exited with code " + String(exitCode)
       if (root.shouldCapture && !startTimer.running) retryTimer.restart()
     }
   }
@@ -193,6 +271,10 @@ Item {
         title: root.title,
         artist: root.artist,
         identity: root.identity,
+        sourceCount: root.focusedPlayers.length,
+        inputRejected: root.inputRejected,
+        volume: root.volume,
+        volumeBackend: root.volumeBackend,
         captureState: root.captureState,
         captureReason: root.captureReason,
         captureTarget: root.captureTarget,
@@ -217,5 +299,6 @@ Item {
     function playPause(): string { return root.runAction("playPause") ? "ok" : "unhandled" }
     function next(): string { return root.runAction("next") ? "ok" : "unhandled" }
     function previous(): string { return root.runAction("previous") ? "ok" : "unhandled" }
+    function setVolume(value: real): string { return root.setVolume(value) ? "ok" : "unhandled" }
   }
 }
