@@ -13,6 +13,8 @@ BarWidget {
   readonly property bool playing: waveformService ? waveformService.playing : false
   readonly property bool showControls: setting("showControls", true) === true
   readonly property bool showTitle: setting("showTitle", true) === true
+  readonly property bool showArtist: String(setting("showArtist", false)).toLowerCase() === "true"
+  readonly property bool showFullTitle: String(setting("showFullTitle", false)).toLowerCase() === "true"
   readonly property bool showCover: String(setting("showCover", false)).toLowerCase() === "true"
   readonly property bool hideWhenPaused: setting("hideWhenPaused", false) === true
   readonly property real waveformWidth: Math.min(240,
@@ -129,7 +131,9 @@ BarWidget {
 
         Item {
           visible: root.showTitle && !root.vertical
-          width: visible ? Math.min(root.maxTitleWidth, titleText.implicitWidth) : 0
+          width: visible ? (root.showFullTitle
+            ? titleText.implicitWidth
+            : Math.min(root.maxTitleWidth, titleText.implicitWidth)) : 0
           height: titleText.implicitHeight
           clip: true
           anchors.verticalCenter: parent.verticalCenter
@@ -138,11 +142,18 @@ BarWidget {
             id: titleText
             width: parent.width
             height: implicitHeight
-            text: root.waveformService ? root.waveformService.title : ""
+            text: {
+              if (!root.waveformService) return ""
+              var title = root.waveformService.title || ""
+              if (root.showArtist && root.waveformService.artist) {
+                return title + " \u2014 " + root.waveformService.artist
+              }
+              return title
+            }
             foreground: root.bar ? root.bar.barForeground : Color.foreground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             fontPixelSize: Style.font.bodySmall
-            active: !root.opened
+            active: !root.opened && !root.showFullTitle
           }
         }
       }

@@ -27,7 +27,9 @@
       "hideWhenPaused": false,
       "waveformWidth": 72,
       "maxTitleWidth": 150,
-      "showCover": false
+      "showCover": false,
+      "showArtist": false,
+      "showFullTitle": false
     },
     "schema": [
       {
@@ -45,10 +47,24 @@
         "defaultValue": true
       },
       {
+        "key": "showArtist",
+        "type": "boolean",
+        "label": "Show artist in title",
+        "description": "Include the artist name after the track title in the scrolling text.",
+        "defaultValue": false
+      },
+      {
         "key": "hideWhenPaused",
         "type": "boolean",
         "label": "Hide when paused",
         "description": "Remove WaveBar from the bar while the selected media source is paused.",
+        "defaultValue": false
+      },
+      {
+        "key": "showFullTitle",
+        "type": "boolean",
+        "label": "Show full track info",
+        "description": "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles.",
         "defaultValue": false
       },
       {
