@@ -85,6 +85,47 @@ const differentSpotifyEpisode = player({
 })
 assert.equal(model.duplicatePlayers(spotifyBridge, differentSpotifyEpisode), false)
 
+// Spotify titles a podcast media session with the show, never with itself, so
+// the bridge carries no app name to match on. The identical duration is the
+// only evidence the pair shares one session, and without it the episode is
+// listed twice.
+const podcastBridge = player({
+  dbusName: "org.mpris.MediaPlayer2.chromium.instance405136",
+  desktopEntry: "",
+  identity: "Chromium",
+  trackTitle: "#427 - \"I Infilitrate Secret Societies\" Epstein, Bohemian Grove & Bilderberg Group | Jon Ronson \u2022 Danny Jones Podcast",
+  trackArtist: "",
+  trackAlbum: "",
+  length: 11331.621,
+  isPlaying: true
+})
+const podcastDirect = player({
+  dbusName: "org.mpris.MediaPlayer2.spotify",
+  desktopEntry: "spotify",
+  identity: "Spotify",
+  trackTitle: "#427 - \"I Infilitrate Secret Societies\" Epstein, Bohemian Grove & Bilderberg Group | Jon Ronson",
+  trackArtist: "",
+  trackAlbum: "",
+  length: 11331.621,
+  isPlaying: true
+})
+assert.equal(model.duplicatePlayers(podcastBridge, podcastDirect), true)
+assert.deepEqual(model.focusedPlayers([podcastBridge, podcastDirect]), [podcastDirect])
+
+// A duration that only nearly agrees is not evidence of a shared session, so a
+// bridge that never names the app stays separate.
+const nearMissDirect = player({
+  dbusName: "org.mpris.MediaPlayer2.spotify",
+  desktopEntry: "spotify",
+  identity: "Spotify",
+  trackTitle: podcastDirect.trackTitle,
+  trackArtist: "",
+  trackAlbum: "",
+  length: podcastDirect.length + 1,
+  isPlaying: true
+})
+assert.equal(model.duplicatePlayers(podcastBridge, nearMissDirect), false)
+
 const unique = stream()
 assert.equal(model.chooseCapture(player(), [unique]).node, unique)
 assert.equal(model.chooseVolumeNode(player({ isPlaying: false }), [unique]).node, unique)

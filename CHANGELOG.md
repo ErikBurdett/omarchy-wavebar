@@ -1,5 +1,16 @@
 # Changelog
 
+## 1.0.3 — 2026-09-04
+
+### Media and interface
+
+- Deduplicated a Spotify podcast whose Chromium bridge names the show rather
+  than the app, which left the episode listed twice while it played in the
+  desktop client. A bridge that never names the app is now accepted as a
+  mirror when both endpoints report exactly the same duration, since only one
+  underlying session produces that. Durations that merely agree closely still
+  require the app name, so unrelated sessions of a similar length stay apart.
+
 ## 1.0.2 — 2026-09-02
 
 ### Security and lifecycle

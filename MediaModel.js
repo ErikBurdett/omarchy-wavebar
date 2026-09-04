@@ -153,12 +153,19 @@ function isBrowserMirror(browser, direct) {
       break
     }
   }
-  if (!mentionsApp) return false
-
   var browserLength = mediaLength(browser)
   var directLength = mediaLength(direct)
-  if (browserLength > 0 && directLength > 0)
-    return Math.abs(browserLength - directLength) <= 2
+  var lengthsKnown = browserLength > 0 && directLength > 0
+
+  // The bridge does not always name the app: Spotify labels a podcast session
+  // with the show rather than with itself, so the app check alone leaves the
+  // episode listed twice. Two endpoints reporting the exact same duration are
+  // describing one underlying session, which is the evidence the title lacks.
+  // Anything less exact still has to name the app, keeping unrelated sessions
+  // that merely run a similar length apart.
+  if (!mentionsApp && !(lengthsKnown && browserLength === directLength)) return false
+
+  if (lengthsKnown) return Math.abs(browserLength - directLength) <= 2
 
   return normalized(playerTitle(browser), MAX_TITLE_LENGTH) === directTitle
 }
