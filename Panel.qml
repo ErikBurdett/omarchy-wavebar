@@ -104,7 +104,7 @@ Panel {
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(390))
     contentHeight: panel.fittedContentHeight(content.implicitHeight,
-      Style.space(root.showSettings ? 860 : 620))
+      Style.space(root.showSettings ? 1180 : 620))
 
     PanelKeyCatcher {
       id: keyCatcher
