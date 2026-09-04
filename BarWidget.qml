@@ -177,6 +177,7 @@ BarWidget {
       }
 
       MouseArea {
+        id: mediaHover
         anchors.fill: parent
         hoverEnabled: true
         cursorShape: Qt.PointingHandCursor
@@ -187,9 +188,9 @@ BarWidget {
           root.waveformService.runAction(wheel.angleDelta.y > 0 ? "previous" : "next")
         }
         onEntered: if (root.bar && root.waveformService)
-          root.bar.showTooltip(root, root.waveformService.title
+          root.bar.showTooltip(mediaButton, root.waveformService.title
             + (root.waveformService.artist ? " — " + root.waveformService.artist : ""))
-        onExited: if (root.bar) root.bar.hideTooltip(root)
+        onExited: if (root.bar) root.bar.hideTooltip(mediaButton)
       }
     }
 
