@@ -122,24 +122,24 @@ Panel {
         else if (key === "p" || key === "P") root.service.runAction("previous")
       }
 
-      ScrollView {
-        id: scrollArea
+      Flickable {
+        id: panelFlick
         anchors.fill: parent
+        contentWidth: width
+        contentHeight: content.implicitHeight
         clip: true
-        ScrollBar.horizontal.policy: ScrollBar.AlwaysOff
-        ScrollBar.vertical.policy: content.implicitHeight > height ? ScrollBar.AsNeeded : ScrollBar.AlwaysOff
-        Binding {
-          target: scrollArea.contentItem
-          property: "interactive"
-          value: content.implicitHeight > scrollArea.height
-        }
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
         Column {
           id: content
-          width: scrollArea.availableWidth
+          width: panelFlick.width
           spacing: Style.space(10)
 
           Row {
+            width: parent.width
             spacing: Style.space(10)
 
             BorderSurface {
@@ -175,6 +175,7 @@ Panel {
               anchors.verticalCenter: parent.verticalCenter
 
               Text {
+                width: parent.width
                 textFormat: Text.PlainText
                 text: root.service && root.service.title ? root.service.title : "Nothing playing"
                 color: root.barForeground
@@ -185,6 +186,7 @@ Panel {
               }
 
               Text {
+                width: parent.width
                 visible: text !== ""
                 textFormat: Text.PlainText
                 text: root.service ? root.service.artist : ""
@@ -195,6 +197,7 @@ Panel {
               }
 
               Text {
+                width: parent.width
                 textFormat: Text.PlainText
                 text: root.service ? root.service.identity : ""
                 color: Qt.darker(root.barForeground, 1.55)
@@ -206,6 +209,7 @@ Panel {
           }
 
           BorderSurface {
+            width: parent.width
             height: Style.space(88)
             radius: Style.cornerRadius
             color: Style.normalFillFor(root.barForeground, Color.accent)
@@ -225,6 +229,7 @@ Panel {
           }
 
           Text {
+            width: parent.width
             textFormat: Text.PlainText
             text: root.captureMessage()
             color: Qt.darker(root.barForeground, 1.4)
@@ -235,6 +240,7 @@ Panel {
           }
 
           Row {
+            width: parent.width
             visible: root.hasLength
             spacing: Style.space(6)
 
@@ -309,6 +315,7 @@ Panel {
           }
 
           Row {
+            width: parent.width
             spacing: Style.space(8)
 
             Text {
@@ -351,6 +358,7 @@ Panel {
 
           Column {
             id: sourceList
+            width: parent.width
             visible: root.service && root.service.focusedPlayers.length > 1
             spacing: Style.space(4)
 
@@ -361,6 +369,7 @@ Panel {
 
             ListView {
               id: sourceView
+              width: parent.width
               height: Math.min(contentHeight, Style.space(210))
               spacing: Style.space(4)
               clip: true
@@ -418,6 +427,7 @@ Panel {
           }
 
           Column {
+            width: parent.width
             visible: root.showSettings
             spacing: Style.space(4)
 
@@ -430,88 +440,91 @@ Panel {
               foreground: root.barForeground
             }
 
-            Column {
-              spacing: Style.space(4)
+            Toggle {
+              width: parent.width
+              label: "Show track title"
+              description: "Show the scrolling track title beside the waveform."
+              checked: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showTitle",
+                String(root.setting("showTitle", true)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                label: "Show track title"
-                description: "Show the scrolling track title beside the waveform."
-                checked: String(root.setting("showTitle", true)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("showTitle",
-                  String(root.setting("showTitle", true)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show artist in title"
+              description: "Show the artist name after the track title."
+              checked: String(root.setting("showArtist", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showArtist",
+                String(root.setting("showArtist", false)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
-                label: "Show artist in title"
-                description: "Show the artist name after the track title."
-                checked: String(root.setting("showArtist", false)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("showArtist",
-                  String(root.setting("showArtist", false)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show full track info"
+              description: "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles."
+              checked: String(root.setting("showFullTitle", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showFullTitle",
+                String(root.setting("showFullTitle", false)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
-                label: "Show full track info"
-                description: "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles."
-                checked: String(root.setting("showFullTitle", false)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("showFullTitle",
-                  String(root.setting("showFullTitle", false)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              label: "Show album cover"
+              description: "Show the album art thumbnail between the waveform and the track title when a cover is available."
+              checked: String(root.setting("showCover", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showCover",
+                String(root.setting("showCover", false)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                label: "Show album cover"
-                description: "Show the album art thumbnail between the waveform and the track title when a cover is available."
-                checked: String(root.setting("showCover", false)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("showCover",
-                  String(root.setting("showCover", false)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              label: "Show playback controls"
+              description: "Show previous, play/pause, and next buttons in the bar."
+              checked: String(root.setting("showControls", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showControls",
+                String(root.setting("showControls", true)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                label: "Show playback controls"
-                description: "Show previous, play/pause, and next buttons in the bar."
-                checked: String(root.setting("showControls", true)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("showControls",
-                  String(root.setting("showControls", true)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showControls", true)).toLowerCase() === "true"
+              label: "Group playback controls"
+              description: "Keep previous next to play/pause and next, beside the waveform."
+              checked: String(root.setting("groupControls", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("groupControls",
+                String(root.setting("groupControls", false)).toLowerCase() !== "true")
+            }
 
-              Toggle {
-                visible: String(root.setting("showControls", true)).toLowerCase() === "true"
-                label: "Group playback controls"
-                description: "Keep previous next to play/pause and next, beside the waveform."
-                checked: String(root.setting("groupControls", false)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("groupControls",
-                  String(root.setting("groupControls", false)).toLowerCase() !== "true")
-              }
-
-              Toggle {
-                label: "Hide when paused"
-                description: "Remove WaveBar from the bar while playback is paused."
-                checked: String(root.setting("hideWhenPaused", false)).toLowerCase() === "true"
-                foreground: root.barForeground
-                accent: Color.accent
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                onClicked: root.setBooleanSetting("hideWhenPaused",
-                  String(root.setting("hideWhenPaused", false)).toLowerCase() !== "true")
-              }
+            Toggle {
+              width: parent.width
+              label: "Hide when paused"
+              description: "Remove WaveBar from the bar while playback is paused."
+              checked: String(root.setting("hideWhenPaused", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("hideWhenPaused",
+                String(root.setting("hideWhenPaused", false)).toLowerCase() !== "true")
             }
           }
         }
