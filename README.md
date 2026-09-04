@@ -16,10 +16,17 @@ desktop media players.
 - Controls the matched local PipeWire stream volume for browsers whose MPRIS
   endpoint ignores volume writes.
 - Selecting a media source immediately starts it and pauses the prior source.
-- Keeps long titles inside the widget and source list with horizontal scrolling.
+- Keeps long titles inside the widget and source list with horizontal scrolling,
+  or shows the full title without scrolling or clipping when enabled.
+- Can show the artist name after the track title in the widget.
+- Can show the album art thumbnail beside the waveform and as the panel header
+  art, using only trusted local files or known cover CDNs.
+- Squared waveform and progress/volume controls with an optional grouped
+  previous/play/pause/next button cluster.
 - Supports horizontal and vertical Omarchy bars.
 - Can live in the left, center, or right section of the Omarchy bar.
-- Exposes display options through Omarchy's native widget settings UI.
+- Exposes display options through Omarchy's native widget settings UI and an
+  in-panel settings section.
 
 ## How media filtering works
 
@@ -83,8 +90,10 @@ omarchy bar move io.github.erikburdett.wavebar --before omarchy.tray
 The manifest uses `left` only as the initial default. Omarchy preserves the
 user's chosen placement in `~/.config/omarchy/shell.json`.
 
-Use WaveBar's native widget settings in Omarchy to show or hide the playback
-controls and title, hide the widget while paused, or adjust the waveform and
+Use WaveBar's native widget settings in Omarchy, or the **Settings** section in
+the media panel (click the cog), to show or hide the playback controls and title,
+show the artist and album cover, group the playback buttons, show the full title
+without scrolling, hide the widget while paused, or adjust the waveform and
 title widths. The equivalent inline configuration is:
 
 ```json
@@ -92,7 +101,11 @@ title widths. The equivalent inline configuration is:
   "id": "io.github.erikburdett.wavebar",
   "showControls": true,
   "showTitle": true,
+  "showArtist": false,
   "hideWhenPaused": false,
+  "groupControls": false,
+  "showFullTitle": false,
+  "showCover": false,
   "waveformWidth": 72,
   "maxTitleWidth": 150
 }
@@ -108,10 +121,16 @@ title widths. The equivalent inline configuration is:
 - `/usr/bin/pw-record` from the `pipewire-audio` package
 - `/usr/bin/python3` and the Python 3 standard library from the `python` package
 
-WaveBar opens no network connections and rejects MPRIS-provided artwork rather
-than loading an untrusted URL or file. It uses only local MPRIS and PipeWire
-services. Media collections, metadata fields, capture targets, waveform frames,
-and user-configurable widths all have explicit limits.
+WaveBar opens no network connections for waveform or media handling. Album art
+is the one optional exception: when the user enables cover display, only local
+`file://` paths and a known allowlist of trusted cover CDNs (Apple Music
+`mzstatic.com`, Spotify `scdn.co`, YouTube `yimg.com`/`ggpht.com`/
+`googleusercontent.com`, and Tidal/Deezer `tidal.com`/`dzcdn.net`) are loaded.
+All other MPRIS-provided URLs — remote hosts, `data:`, special files, and
+oversized sources — are rejected and treated as no cover. WaveBar otherwise uses
+only local MPRIS and PipeWire services. Media collections, metadata fields,
+capture targets, waveform frames, and user-configurable widths all have explicit
+limits.
 
 The service invokes fixed `/usr/bin/python3` and `/usr/bin/pw-record` paths with
 a cleared environment and no shell. Its helper validates system-executable
@@ -156,7 +175,7 @@ omarchy plugin validate "$PLUGIN_DIR"
   -i /usr/share/omarchy/shell/Ui/qmldir \
   "$PLUGIN_DIR/Service.qml" "$PLUGIN_DIR/BarWidget.qml" \
   "$PLUGIN_DIR/Panel.qml" "$PLUGIN_DIR/Waveform.qml" \
-  "$PLUGIN_DIR/MarqueeText.qml"
+  "$PLUGIN_DIR/WavebarSlider.qml" "$PLUGIN_DIR/MarqueeText.qml"
 node "$PLUGIN_DIR/tests/test_media_model.js"
 /usr/bin/python3 "$PLUGIN_DIR/tests/test_manifest.py"
 /usr/bin/python3 "$PLUGIN_DIR/tests/test_waveform.py"

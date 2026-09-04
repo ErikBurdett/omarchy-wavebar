@@ -1,5 +1,32 @@
 # Changelog
 
+## Unreleased
+
+### Media and interface
+
+- Added a `showArtist` setting to display the artist name after the track title
+  in the widget (matching the panel tooltip).
+- Added a `showFullTitle` setting to show the whole track title without
+  truncating or horizontal scrolling.
+- Added a `showCover` setting to show the album art thumbnail between the
+  waveform and the track title, and as the panel header art.
+- Added a `groupControls` setting to keep the previous/play/pause/next buttons
+  grouped beside the waveform instead of splitting previous to the far side.
+- Added an in-panel **Settings** section (behind a cog button) that toggles
+  title, artist, full-title, album-cover, controls, grouped-controls, and
+  hide-when-paused options.
+- Used squared theming for the waveform bars and progress/volume controls via a
+  plugin-local `WavebarSlider`, keeping other Omarchy panels' sliders unchanged.
+- Corrected panel tooltips to use the bar's native tooltip targets and made the
+  previous button tooltip switch targets when controls are grouped.
+
+### Security
+
+- Reintroduced opt-in album art with a hardened allowlist: only local `file://`
+  paths and trusted cover CDNs (Apple Music, Spotify, YouTube, Tidal/Deezer) are
+  ever loaded; all other MPRIS-provided URLs are rejected and treated as no
+  cover. The allowlist lives on the service so bar and panel share one check.
+
 ## 1.0.2 — 2026-09-02
 
 ### Security and lifecycle
