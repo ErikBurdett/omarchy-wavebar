@@ -36,6 +36,8 @@ Item {
   readonly property string artist: MediaModel.playerArtist(activePlayer)
   readonly property string album: MediaModel.playerAlbum(activePlayer)
   readonly property string identity: MediaModel.playerIdentity(activePlayer)
+  readonly property string trackArtUrl: safeTrackArt(activePlayer && activePlayer.trackArtUrl
+    ? activePlayer.trackArtUrl : "")
 
   // Matching player metadata to PipeWire nodes is the most expensive model
   // pass. Reuse one bounded result for capture and volume instead of scoring
@@ -81,6 +83,30 @@ Item {
   function playerTitle(player) { return MediaModel.playerTitle(player) }
   function playerArtist(player) { return MediaModel.playerArtist(player) }
   function playerIdentity(player) { return MediaModel.playerIdentity(player) }
+
+  // Album art hardening: only allow local files or trusted cover CDNs (Spotify,
+  // YouTube, Apple Music, Tidal/Deezer). Anything else is rejected so we never
+  // load an untrusted remote URL supplied by a media player.
+  function isSafeTrackArt(url) {
+    if (typeof url !== "string" || url === "") return false
+    if (url.startsWith("file://")) return true
+    if (url.startsWith("/")) return true
+    var m = /^https?:\/\/([^\/?#]+)/.exec(url)
+    if (!m) return false
+    var host = m[1]
+    if (host === "localhost" || host === "127.0.0.1") return true
+    if (host.endsWith(".mzstatic.com")) return true          // Apple Music
+    if (host.endsWith(".scdn.co")) return true               // Spotify
+    if (host === "i.ytimg.com" || host.endsWith(".ggpht.com")
+      || host.endsWith(".googleusercontent.com")) return true // YouTube
+    if (host.endsWith(".tidal.com") || host === "e-cdns-images.dzcdn.net"
+      || host.endsWith(".dzcdn.net")) return true            // Tidal / Deezer CDN
+    return false
+  }
+
+  function safeTrackArt(url) {
+    return isSafeTrackArt(url) ? url : ""
+  }
 
   function playerKey(player) {
     return MediaModel.playerKey(player)

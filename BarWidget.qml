@@ -13,9 +13,11 @@ BarWidget {
   readonly property bool playing: waveformService ? waveformService.playing : false
   readonly property bool showControls: setting("showControls", true) === true
   readonly property bool showTitle: setting("showTitle", true) === true
+  readonly property bool showCover: String(setting("showCover", false)).toLowerCase() === "true"
   readonly property bool hideWhenPaused: setting("hideWhenPaused", false) === true
   readonly property real waveformWidth: Math.min(240,
     Math.max(40, Number(setting("waveformWidth", 72)) || 72))
+  readonly property string artUrl: waveformService ? waveformService.trackArtUrl : ""
   readonly property real maxTitleWidth: Math.min(320,
     Math.max(60, Number(setting("maxTitleWidth", 150)) || 150))
 
@@ -108,6 +110,21 @@ BarWidget {
           live: root.waveformService ? root.waveformService.receivingFrames : false
           foreground: root.bar ? root.bar.barForeground : Color.foreground
           anchors.verticalCenter: parent.verticalCenter
+        }
+
+        Item {
+          visible: root.showCover && root.artUrl !== "" && !root.vertical
+          width: Style.space(18)
+          height: Style.space(18)
+          clip: true
+          anchors.verticalCenter: parent.verticalCenter
+
+          Image {
+            anchors.fill: parent
+            fillMode: Image.PreserveAspectCrop
+            asynchronous: true
+            source: root.artUrl
+          }
         }
 
         Item {

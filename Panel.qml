@@ -20,6 +20,7 @@ Panel {
   readonly property bool playing: service ? service.playing : false
   readonly property bool hasLength: player && player.positionSupported
     && player.lengthSupported && Number(player.length) > 0
+  readonly property string artUrl: service ? service.trackArtUrl : ""
 
   function open() {
     controller.show()
@@ -116,8 +117,18 @@ Panel {
             borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
             clip: true
 
+            Image {
+              anchors.fill: parent
+              anchors.margins: Style.space(2)
+              fillMode: Image.PreserveAspectCrop
+              asynchronous: true
+              source: root.artUrl
+              visible: source !== ""
+            }
+
             Text {
               anchors.centerIn: parent
+              visible: root.artUrl === ""
               text: "󰝚"
               color: root.barForeground
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
