@@ -31,8 +31,20 @@ jobs:
 
   qml:
     runs-on: ubuntu-latest
-    timeout-minutes: 10
+    timeout-minutes: 15
+    # Lint on Arch, because that is what Omarchy is: the plugin is checked
+    # against the same Qt its users actually run. The Ubuntu runner image ships
+    # qmllint 6.4.2, which predates both options this gate depends on and fails
+    # with "Unknown options: max-warnings, missing-property". Pinned by digest
+    # so the image cannot move underneath an untouched pull request.
+    container:
+      image: archlinux@sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a
     steps:
+      # Installed before the checkouts so actions/checkout finds git and clones
+      # normally instead of falling back to a REST API download.
+      - name: Install Qt QML tooling
+        run: pacman -Syu --noconfirm --needed qt6-declarative git
+
       - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
 
       # qs.Commons and qs.Ui are root-relative Quickshell imports that only
@@ -47,17 +59,12 @@ jobs:
           path: omarchy
           persist-credentials: false
 
-      - name: Install Qt QML tooling
-        run: |
-          sudo apt-get update
-          sudo apt-get install -y --no-install-recommends qt6-declarative-dev-tools
-
       # Catches what the manifest and unit tests cannot: a QML type that never
       # resolves. An unresolved type is not a parse error, so it reaches a user
       # as a component that silently fails to load at login.
       - name: Lint QML
         run: |
-          qmllint=$(command -v qmllint || echo /usr/lib/qt6/bin/qmllint)
+          qmllint=/usr/lib/qt6/bin/qmllint
           "$qmllint" --version
           # Omarchy exposes the injected bar host and nested style tokens as
           # QtObject, so their members have no concrete type for standalone

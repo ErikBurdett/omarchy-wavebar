@@ -1,0 +1,12 @@
+version: 2
+
+# Actions are pinned to full commit SHAs so a moved tag cannot change what CI
+# runs. Dependabot is what keeps those pins current, since a pinned SHA is
+# otherwise never updated and quietly rots.
+updates:
+  - package-ecosystem: github-actions
+    directory: /
+    schedule:
+      interval: monthly
+    commit-message:
+      prefix: ci
