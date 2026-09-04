@@ -15,6 +15,7 @@ BarWidget {
   readonly property bool showTitle: setting("showTitle", true) === true
   readonly property bool showArtist: String(setting("showArtist", false)).toLowerCase() === "true"
   readonly property bool showFullTitle: String(setting("showFullTitle", false)).toLowerCase() === "true"
+  readonly property bool groupControls: String(setting("groupControls", false)).toLowerCase() === "true"
   readonly property bool showCover: String(setting("showCover", false)).toLowerCase() === "true"
   readonly property bool hideWhenPaused: setting("hideWhenPaused", false) === true
   readonly property real waveformWidth: Math.min(240,
@@ -79,24 +80,41 @@ BarWidget {
     anchors.centerIn: parent
     spacing: Style.space(3)
 
-    Button {
-      visible: root.showControls
-      enabled: root.actionEnabled("previous")
-      opacity: enabled ? 1 : 0.35
-      iconText: "󰒮"
-      foreground: root.bar ? root.bar.barForeground : Color.foreground
-      fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-      iconSize: Style.font.body
-      horizontalPadding: Style.space(3)
-      verticalPadding: Style.space(2)
-      tooltipText: "Previous"
-      onClicked: if (root.waveformService) root.waveformService.runAction("previous")
-    }
+    Item {
+      id: prevLeft
+      visible: root.showControls && !root.groupControls
+      implicitWidth: prevLeftBtn.implicitWidth
+      implicitHeight: prevLeftBtn.implicitHeight
+      readonly property bool tooltipHovered: prevLeftHover.containsMouse
 
+      Button {
+        id: prevLeftBtn
+        anchors.fill: parent
+        enabled: root.actionEnabled("previous")
+        opacity: enabled ? 1 : 0.35
+        iconText: "󰒮"
+        foreground: root.bar ? root.bar.barForeground : Color.foreground
+        fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+        iconSize: Style.font.body
+        horizontalPadding: Style.space(3)
+        verticalPadding: Style.space(2)
+        onClicked: if (root.waveformService) root.waveformService.runAction("previous")
+      }
+
+      MouseArea {
+        id: prevLeftHover
+        anchors.fill: parent
+        hoverEnabled: true
+        acceptedButtons: Qt.NoButton
+        onEntered: if (root.bar) root.bar.showTooltip(prevLeft, "Previous")
+        onExited: if (root.bar) root.bar.hideTooltip(prevLeft)
+      }
+    }
     Item {
       id: mediaButton
       implicitWidth: mediaRow.implicitWidth
       implicitHeight: Math.max(Style.space(24), mediaRow.implicitHeight)
+      readonly property bool tooltipHovered: mediaHover.containsMouse
 
       Row {
         id: mediaRow
@@ -175,33 +193,105 @@ BarWidget {
       }
     }
 
-    Button {
+    Row {
+      id: controlsGroup
       visible: root.showControls
-      enabled: root.actionEnabled("playPause")
-      opacity: enabled ? 1 : 0.35
-      iconText: root.playing ? "󰏤" : "󰐊"
-      foreground: root.bar ? root.bar.barForeground : Color.foreground
-      fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-      iconSize: Style.font.body
-      horizontalPadding: Style.space(4)
-      verticalPadding: Style.space(2)
-      tooltipText: root.playing ? "Pause" : "Play"
-      onClicked: if (root.waveformService) root.waveformService.runAction("playPause")
+      spacing: Style.space(3)
+
+      Item {
+        id: prevButton
+        visible: root.groupControls
+        implicitWidth: prevBtn.implicitWidth
+        implicitHeight: prevBtn.implicitHeight
+        readonly property bool tooltipHovered: prevHover.containsMouse
+
+        Button {
+          id: prevBtn
+          anchors.fill: parent
+          enabled: root.actionEnabled("previous")
+          opacity: enabled ? 1 : 0.35
+          iconText: "󰒮"
+          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          iconSize: Style.font.body
+          horizontalPadding: Style.space(3)
+          verticalPadding: Style.space(2)
+          onClicked: if (root.waveformService) root.waveformService.runAction("previous")
+        }
+
+        MouseArea {
+          id: prevHover
+          anchors.fill: parent
+          hoverEnabled: true
+          acceptedButtons: Qt.NoButton
+          onEntered: if (root.bar) root.bar.showTooltip(prevButton, "Previous")
+          onExited: if (root.bar) root.bar.hideTooltip(prevButton)
+        }
+      }
+
+      Item {
+        id: playButton
+        visible: true
+        implicitWidth: playBtn.implicitWidth
+        implicitHeight: playBtn.implicitHeight
+        readonly property bool tooltipHovered: playHover.containsMouse
+
+        Button {
+          id: playBtn
+          anchors.fill: parent
+          enabled: root.actionEnabled("playPause")
+          opacity: enabled ? 1 : 0.35
+          iconText: root.playing ? "󰏤" : "󰐊"
+          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          iconSize: Style.font.body
+          horizontalPadding: Style.space(3)
+          verticalPadding: Style.space(2)
+          onClicked: if (root.waveformService) root.waveformService.runAction("playPause")
+        }
+
+        MouseArea {
+          id: playHover
+          anchors.fill: parent
+          hoverEnabled: true
+          acceptedButtons: Qt.NoButton
+          onEntered: if (root.bar) root.bar.showTooltip(playButton, root.playing ? "Pause" : "Play")
+          onExited: if (root.bar) root.bar.hideTooltip(playButton)
+        }
+      }
+
+      Item {
+        id: nextButton
+        visible: true
+        implicitWidth: nextBtn.implicitWidth
+        implicitHeight: nextBtn.implicitHeight
+        readonly property bool tooltipHovered: nextHover.containsMouse
+
+        Button {
+          id: nextBtn
+          anchors.fill: parent
+          enabled: root.actionEnabled("next")
+          opacity: enabled ? 1 : 0.35
+          iconText: "󰒭"
+          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+          iconSize: Style.font.body
+          horizontalPadding: Style.space(3)
+          verticalPadding: Style.space(2)
+          onClicked: if (root.waveformService) root.waveformService.runAction("next")
+        }
+
+        MouseArea {
+          id: nextHover
+          anchors.fill: parent
+          hoverEnabled: true
+          acceptedButtons: Qt.NoButton
+          onEntered: if (root.bar) root.bar.showTooltip(nextButton, "Next")
+          onExited: if (root.bar) root.bar.hideTooltip(nextButton)
+        }
+      }
     }
 
-    Button {
-      visible: root.showControls
-      enabled: root.actionEnabled("next")
-      opacity: enabled ? 1 : 0.35
-      iconText: "󰒭"
-      foreground: root.bar ? root.bar.barForeground : Color.foreground
-      fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-      iconSize: Style.font.body
-      horizontalPadding: Style.space(3)
-      verticalPadding: Style.space(2)
-      tooltipText: "Next"
-      onClicked: if (root.waveformService) root.waveformService.runAction("next")
-    }
   }
 
   Column {

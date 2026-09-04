@@ -29,7 +29,8 @@
       "maxTitleWidth": 150,
       "showCover": false,
       "showArtist": false,
-      "showFullTitle": false
+      "showFullTitle": false,
+      "groupControls": false
     },
     "schema": [
       {
@@ -38,6 +39,13 @@
         "label": "Show playback controls",
         "description": "Show previous, play/pause, and next controls in the bar.",
         "defaultValue": true
+      },
+      {
+        "key": "groupControls",
+        "type": "boolean",
+        "label": "Group playback controls",
+        "description": "Place the previous/play/next buttons in one tight group next to the media info instead of separating previous from the rest.",
+        "defaultValue": false
       },
       {
         "key": "showTitle",
