@@ -20,6 +20,8 @@ Panel {
   readonly property bool playing: service ? service.playing : false
   readonly property bool hasLength: player && player.positionSupported
     && player.lengthSupported && Number(player.length) > 0
+  property bool showSettings: false
+
   readonly property string artUrl: service ? service.trackArtUrl : ""
 
   function open() {
@@ -51,6 +53,26 @@ Panel {
     return minutes + ":" + String(remainder).padStart(2, "0")
   }
 
+  function setBooleanSetting(key, value) {
+    var shell = root.bar && root.bar.shell
+    if (!shell || typeof shell.mutateShellConfig !== "function") return
+    shell.mutateShellConfig(function(config) {
+      if (!Util.isPlainObject(config.bar)) config.bar = {}
+      if (!Util.isPlainObject(config.bar.layout)) config.bar.layout = {}
+      for (var region in config.bar.layout) {
+        var entries = config.bar.layout[region]
+        if (!Array.isArray(entries)) continue
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i]
+          if (entry && entry.id === root.moduleName) {
+            entry[key] = !!value
+            return
+          }
+        }
+      }
+    })
+  }
+
   function captureMessage() {
     if (!service) return "Media service is loading"
     if (service.inputRejected) return "Media inputs exceeded safety limits"
@@ -66,7 +88,6 @@ Panel {
   }
 
   onPlayerChanged: updatePosition()
-
   Timer {
     interval: 500
     repeat: true
@@ -82,7 +103,8 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(390))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(620))
+    contentHeight: panel.fittedContentHeight(content.implicitHeight,
+      Style.space(root.showSettings ? 860 : 620))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -220,7 +242,7 @@ Panel {
             anchors.verticalCenter: parent.verticalCenter
           }
 
-          PanelSlider {
+          WavebarSlider {
             id: positionSlider
             width: parent.width - Style.space(90)
             bar: root.bar
@@ -253,6 +275,7 @@ Panel {
           Button {
             iconText: "󰒮"
             foreground: root.barForeground
+            iconSize: Style.font.icon
             enabled: root.player && root.player.canGoPrevious
             opacity: enabled ? 1 : 0.35
             tooltipText: "Previous (P)"
@@ -262,8 +285,7 @@ Panel {
           Button {
             iconText: root.playing ? "󰏤" : "󰐊"
             foreground: root.barForeground
-            iconSize: Style.font.iconLarge
-            horizontalPadding: Style.spacing.panelGap
+            iconSize: Style.font.icon
             enabled: root.player && (root.player.canTogglePlaying || root.player.canPlay || root.player.canPause)
             opacity: enabled ? 1 : 0.35
             tooltipText: root.playing ? "Pause (Space)" : "Play (Space)"
@@ -273,6 +295,7 @@ Panel {
           Button {
             iconText: "󰒭"
             foreground: root.barForeground
+            iconSize: Style.font.icon
             enabled: root.player && root.player.canGoNext
             opacity: enabled ? 1 : 0.35
             tooltipText: "Next (N)"
@@ -282,19 +305,21 @@ Panel {
 
         Row {
           width: parent.width
-          visible: root.service && root.service.volumeSupported
           spacing: Style.space(8)
 
           Text {
             text: "󰕾"
+            visible: root.service && root.service.volumeSupported
             color: root.barForeground
             font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.body
+            font.pixelSize: Style.font.icon
             anchors.verticalCenter: parent.verticalCenter
           }
 
-          PanelSlider {
-            width: parent.width - Style.space(28)
+          WavebarSlider {
+            width: parent.width - Style.space(28) - settingsButton.implicitWidth
+            visible: root.service && root.service.volumeSupported
+            anchors.verticalCenter: parent.verticalCenter
             bar: root.bar
             minimum: 0
             maximum: 1
@@ -302,6 +327,16 @@ Panel {
             value: root.service ? root.service.volume : 0
             onMoved: function(value) { if (root.service) root.service.setVolume(value) }
             onReleased: function(value) { if (root.service) root.service.setVolume(value) }
+          }
+
+          Button {
+            id: settingsButton
+            iconText: ""
+            foreground: root.barForeground
+            iconSize: Style.font.icon
+            anchors.verticalCenter: parent.verticalCenter
+            tooltipText: root.showSettings ? "Hide settings" : "Settings"
+            onClicked: root.showSettings = !root.showSettings
           }
         }
 
@@ -376,6 +411,113 @@ Panel {
                 fontBold: sourceButton.selected
                 active: sourceButton.hot || sourceButton.isCurrent
               }
+            }
+          }
+        }
+
+        Column {
+          width: parent.width
+          visible: root.showSettings
+          spacing: Style.space(4)
+
+          PanelSeparator {
+            foreground: root.barForeground
+          }
+
+          PanelSectionHeader {
+            text: "Settings"
+            foreground: root.barForeground
+          }
+
+          Column {
+            width: parent.width
+            spacing: Style.space(4)
+
+            Toggle {
+              width: parent.width
+              label: "Show track title"
+              description: "Show the scrolling track title beside the waveform."
+              checked: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showTitle",
+                String(root.setting("showTitle", true)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show artist in title"
+              description: "Show the artist name after the track title."
+              checked: String(root.setting("showArtist", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showArtist",
+                String(root.setting("showArtist", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show full track info"
+              description: "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles."
+              checked: String(root.setting("showFullTitle", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showFullTitle",
+                String(root.setting("showFullTitle", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show album cover"
+              description: "Show the album art thumbnail between the waveform and the track title when a cover is available."
+              checked: String(root.setting("showCover", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showCover",
+                String(root.setting("showCover", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show playback controls"
+              description: "Show previous, play/pause, and next buttons in the bar."
+              checked: String(root.setting("showControls", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showControls",
+                String(root.setting("showControls", true)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showControls", true)).toLowerCase() === "true"
+              label: "Group playback controls"
+              description: "Keep previous next to play/pause and next, beside the waveform."
+              checked: String(root.setting("groupControls", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("groupControls",
+                String(root.setting("groupControls", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Hide when paused"
+              description: "Remove WaveBar from the bar while playback is paused."
+              checked: String(root.setting("hideWhenPaused", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("hideWhenPaused",
+                String(root.setting("hideWhenPaused", false)).toLowerCase() !== "true")
             }
           }
         }
