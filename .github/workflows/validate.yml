@@ -28,3 +28,62 @@ jobs:
 
       - name: Reject packaged symbolic links
         run: test -z "$(find . -type l -print -quit)"
+
+  qml:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Lint on Arch, because that is what Omarchy is: the plugin is checked
+    # against the same Qt its users actually run. The Ubuntu runner image ships
+    # qmllint 6.4.2, which predates both options this gate depends on and fails
+    # with "Unknown options: max-warnings, missing-property". Pinned by digest
+    # so the image cannot move underneath an untouched pull request.
+    container:
+      image: archlinux@sha256:82b1b08faae9d61e3e7e13d562f4d09114d939105b0d59ff34140f3bd418593a
+    steps:
+      # quickshell supplies the Quickshell QML module that Service.qml and
+      # Panel.qml import for Process, IpcHandler, and PanelWindow; without it
+      # every one of those resolves to nothing and the gate reports import
+      # failures rather than real defects. Installed before the checkouts so
+      # actions/checkout finds git and clones normally instead of falling back
+      # to a REST API download.
+      - name: Install Qt QML tooling
+        run: pacman -Syu --noconfirm --needed qt6-declarative quickshell git
+
+      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+
+      # qs.Commons and qs.Ui are root-relative Quickshell imports that only
+      # resolve against an Omarchy shell tree, so standalone qmllint needs one
+      # checked out beside the plugin. Pinned to a commit: an unpinned lint
+      # dependency turns an upstream edit into a red build on an untouched PR.
+      - name: Check out the Omarchy shell that supplies qs.Commons and qs.Ui
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          repository: basecamp/omarchy
+          ref: 346e69e1cec6c4e8924531874af6ba010a1bc99e # v4.0.2
+          path: omarchy
+          persist-credentials: false
+
+      # Catches what the manifest and unit tests cannot: a QML type that never
+      # resolves. An unresolved type is not a parse error, so it reaches a user
+      # as a component that silently fails to load at login.
+      - name: Lint QML
+        run: |
+          qmllint=/usr/lib/qt6/bin/qmllint
+          "$qmllint" --version
+          # Omarchy exposes the injected bar host and nested style tokens as
+          # QtObject, so their members have no concrete type for standalone
+          # tooling; that one category stays informational, everything else
+          # fails the build. Diagnostics are only printed on failure.
+          if ! "$qmllint" --silent --max-warnings 0 --missing-property info \
+            -I omarchy/shell \
+            -i omarchy/shell/Commons/qmldir \
+            -i omarchy/shell/Ui/qmldir \
+            *.qml; then
+            echo "::error::qmllint reported warnings" >&2
+            "$qmllint" --max-warnings 0 --missing-property info \
+              -I omarchy/shell \
+              -i omarchy/shell/Commons/qmldir \
+              -i omarchy/shell/Ui/qmldir \
+              *.qml 2>&1 | grep -E '^(Warning|Error):' >&2 || true
+            exit 1
+          fi
