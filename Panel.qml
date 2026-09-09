@@ -20,6 +20,9 @@ Panel {
   readonly property bool playing: service ? service.playing : false
   readonly property bool hasLength: player && player.positionSupported
     && player.lengthSupported && Number(player.length) > 0
+  property bool showSettings: false
+
+  readonly property string artUrl: service ? service.trackArtUrl : ""
 
   function open() {
     controller.show()
@@ -50,6 +53,26 @@ Panel {
     return minutes + ":" + String(remainder).padStart(2, "0")
   }
 
+  function setBooleanSetting(key, value) {
+    var shell = root.bar && root.bar.shell
+    if (!shell || typeof shell.mutateShellConfig !== "function") return
+    shell.mutateShellConfig(function(config) {
+      if (!Util.isPlainObject(config.bar)) config.bar = {}
+      if (!Util.isPlainObject(config.bar.layout)) config.bar.layout = {}
+      for (var region in config.bar.layout) {
+        var entries = config.bar.layout[region]
+        if (!Array.isArray(entries)) continue
+        for (var i = 0; i < entries.length; i++) {
+          var entry = entries[i]
+          if (entry && entry.id === root.moduleName) {
+            entry[key] = !!value
+            return
+          }
+        }
+      }
+    })
+  }
+
   function captureMessage() {
     if (!service) return "Media service is loading"
     if (service.inputRejected) return "Media inputs exceeded safety limits"
@@ -65,7 +88,6 @@ Panel {
   }
 
   onPlayerChanged: updatePosition()
-
   Timer {
     interval: 500
     repeat: true
@@ -81,7 +103,8 @@ Panel {
     open: root.opened
     focusTarget: keyCatcher
     contentWidth: panel.fittedContentWidth(Style.space(390))
-    contentHeight: panel.fittedContentHeight(content.implicitHeight, Style.space(620))
+    contentHeight: panel.fittedContentHeight(content.implicitHeight,
+      Style.space(root.showSettings ? 1180 : 620))
 
     PanelKeyCatcher {
       id: keyCatcher
@@ -99,272 +122,409 @@ Panel {
         else if (key === "p" || key === "P") root.service.runAction("previous")
       }
 
-      Column {
-        id: content
-        width: parent.width
-        spacing: Style.space(10)
+      Flickable {
+        id: panelFlick
+        anchors.fill: parent
+        contentWidth: width
+        contentHeight: content.implicitHeight
+        clip: true
+        boundsBehavior: Flickable.StopAtBounds
+        flickableDirection: Flickable.VerticalFlick
+        interactive: contentHeight > height
+        QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
 
-        Row {
-          width: parent.width
+        Column {
+          id: content
+          width: panelFlick.width
           spacing: Style.space(10)
 
+          Row {
+            width: parent.width
+            spacing: Style.space(10)
+
+            BorderSurface {
+              width: Style.space(72)
+              height: Style.space(72)
+              radius: Style.cornerRadius
+              color: Style.normalFillFor(root.barForeground, Color.accent)
+              borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
+              clip: true
+
+              Image {
+                anchors.fill: parent
+                anchors.margins: Style.space(2)
+                fillMode: Image.PreserveAspectCrop
+                asynchronous: true
+                source: root.artUrl
+                visible: source !== ""
+              }
+
+              Text {
+                anchors.centerIn: parent
+                visible: root.artUrl === ""
+                text: "󰝚"
+                color: root.barForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.displayLarge
+              }
+            }
+
+            Column {
+              width: parent.width - Style.space(82)
+              spacing: Style.space(3)
+              anchors.verticalCenter: parent.verticalCenter
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: root.service && root.service.title ? root.service.title : "Nothing playing"
+                color: root.barForeground
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.subtitle
+                font.bold: true
+                elide: Text.ElideRight
+              }
+
+              Text {
+                width: parent.width
+                visible: text !== ""
+                textFormat: Text.PlainText
+                text: root.service ? root.service.artist : ""
+                color: Qt.darker(root.barForeground, 1.35)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.bodySmall
+                elide: Text.ElideRight
+              }
+
+              Text {
+                width: parent.width
+                textFormat: Text.PlainText
+                text: root.service ? root.service.identity : ""
+                color: Qt.darker(root.barForeground, 1.55)
+                font.family: root.bar ? root.bar.fontFamily : Style.font.family
+                font.pixelSize: Style.font.caption
+                elide: Text.ElideRight
+              }
+            }
+          }
+
           BorderSurface {
-            width: Style.space(72)
-            height: Style.space(72)
+            width: parent.width
+            height: Style.space(88)
             radius: Style.cornerRadius
             color: Style.normalFillFor(root.barForeground, Color.accent)
             borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
-            clip: true
+
+            Waveform {
+              anchors.fill: parent
+              anchors.margins: Style.space(12)
+              barCount: 24
+              samples: root.service ? root.service.samples : []
+              active: root.playing
+              live: root.service ? root.service.receivingFrames : false
+              foreground: root.barForeground
+              gap: Style.space(2)
+              minimumBarHeight: Style.space(2)
+            }
+          }
+
+          Text {
+            width: parent.width
+            textFormat: Text.PlainText
+            text: root.captureMessage()
+            color: Qt.darker(root.barForeground, 1.4)
+            font.family: root.bar ? root.bar.fontFamily : Style.font.family
+            font.pixelSize: Style.font.caption
+            horizontalAlignment: Text.AlignHCenter
+            wrapMode: Text.WordWrap
+          }
+
+          Row {
+            width: parent.width
+            visible: root.hasLength
+            spacing: Style.space(6)
 
             Text {
-              anchors.centerIn: parent
-              text: "󰝚"
+              width: Style.space(42)
+              text: root.formatDuration(positionSlider.dragging ? positionSlider.liveValue : root.displayedPosition)
               color: root.barForeground
               font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.displayLarge
+              font.pixelSize: Style.font.caption
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            WavebarSlider {
+              id: positionSlider
+              width: parent.width - Style.space(90)
+              bar: root.bar
+              minimum: 0
+              maximum: root.player ? Math.max(1, Number(root.player.length) || 1) : 1
+              value: root.displayedPosition
+              step: 5
+              onMoved: function(value) { root.displayedPosition = value }
+              onReleased: function(value) {
+                if (root.service) root.service.seekTo(value)
+                root.displayedPosition = value
+              }
+            }
+
+            Text {
+              width: Style.space(42)
+              text: root.formatDuration(root.player ? root.player.length : 0)
+              color: root.barForeground
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.caption
+              horizontalAlignment: Text.AlignRight
+              anchors.verticalCenter: parent.verticalCenter
+            }
+          }
+
+          Row {
+            anchors.horizontalCenter: parent.horizontalCenter
+            spacing: Style.space(8)
+
+            Button {
+              iconText: "󰒮"
+              foreground: root.barForeground
+              iconSize: Style.font.icon
+              enabled: root.player && root.player.canGoPrevious
+              opacity: enabled ? 1 : 0.35
+              tooltipText: "Previous (P)"
+              onClicked: if (root.service) root.service.runAction("previous")
+            }
+
+            Button {
+              iconText: root.playing ? "󰏤" : "󰐊"
+              foreground: root.barForeground
+              iconSize: Style.font.icon
+              enabled: root.player && (root.player.canTogglePlaying || root.player.canPlay || root.player.canPause)
+              opacity: enabled ? 1 : 0.35
+              tooltipText: root.playing ? "Pause (Space)" : "Play (Space)"
+              onClicked: if (root.service) root.service.runAction("playPause")
+            }
+
+            Button {
+              iconText: "󰒭"
+              foreground: root.barForeground
+              iconSize: Style.font.icon
+              enabled: root.player && root.player.canGoNext
+              opacity: enabled ? 1 : 0.35
+              tooltipText: "Next (N)"
+              onClicked: if (root.service) root.service.runAction("next")
+            }
+          }
+
+          Row {
+            width: parent.width
+            spacing: Style.space(8)
+
+            Text {
+              text: "󰕾"
+              visible: root.service && root.service.volumeSupported
+              color: root.barForeground
+              font.family: root.bar ? root.bar.fontFamily : Style.font.family
+              font.pixelSize: Style.font.icon
+              anchors.verticalCenter: parent.verticalCenter
+            }
+
+            WavebarSlider {
+              width: parent.width - Style.space(28) - settingsButton.implicitWidth
+              visible: root.service && root.service.volumeSupported
+              anchors.verticalCenter: parent.verticalCenter
+              bar: root.bar
+              minimum: 0
+              maximum: 1
+              step: 0.05
+              value: root.service ? root.service.volume : 0
+              onMoved: function(value) { if (root.service) root.service.setVolume(value) }
+              onReleased: function(value) { if (root.service) root.service.setVolume(value) }
+            }
+
+            Button {
+              id: settingsButton
+              iconText: ""
+              foreground: root.barForeground
+              iconSize: Style.font.icon
+              anchors.verticalCenter: parent.verticalCenter
+              tooltipText: root.showSettings ? "Hide settings" : "Settings"
+              onClicked: root.showSettings = !root.showSettings
+            }
+          }
+
+          PanelSeparator {
+            visible: root.service && root.service.focusedPlayers.length > 1
+            foreground: root.barForeground
+          }
+
+          Column {
+            id: sourceList
+            width: parent.width
+            visible: root.service && root.service.focusedPlayers.length > 1
+            spacing: Style.space(4)
+
+            PanelSectionHeader {
+              text: "Media sources"
+              foreground: root.barForeground
+            }
+
+            ListView {
+              id: sourceView
+              width: parent.width
+              height: Math.min(contentHeight, Style.space(210))
+              spacing: Style.space(4)
+              clip: true
+              boundsBehavior: Flickable.StopAtBounds
+              interactive: contentHeight > height
+
+              QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
+
+              model: root.service
+                ? root.service.focusedPlayers.slice(0, root.service.maxPlayers) : []
+
+              delegate: Button {
+                id: sourceButton
+                required property var modelData
+                required property int index
+                readonly property var sourcePlayer: modelData
+                readonly property bool isCurrent: root.player && root.service
+                  && root.service.playerKey(root.player) === root.service.playerKey(sourcePlayer)
+                readonly property string sourceTitle: root.service
+                  ? (root.service.playerTitle(sourcePlayer)
+                    || root.service.playerIdentity(sourcePlayer) || "Media") : "Media"
+                readonly property string sourceArtist: root.service
+                  ? root.service.playerArtist(sourcePlayer) : ""
+
+                width: ListView.view.width
+                height: sourceButton.implicitHeight
+                clip: true
+                leftAlign: true
+                foreground: root.barForeground
+                selected: isCurrent
+                iconText: sourcePlayer && sourcePlayer.isPlaying ? "󰏤" : "󰐊"
+                text: ""
+                tooltipText: sourceTitle + (sourceArtist ? " — " + sourceArtist : "")
+                onClicked: if (root.service) root.service.selectAndPlay(root.service.playerKey(sourcePlayer))
+
+                MarqueeText {
+                  z: 1
+                  anchors.left: parent.left
+                  anchors.leftMargin: sourceButton.horizontalPadding + Style.space(22)
+                  anchors.right: parent.right
+                  anchors.rightMargin: sourceButton.horizontalPadding
+                  anchors.verticalCenter: parent.verticalCenter
+                  height: implicitHeight
+                  text: sourceButton.sourceTitle
+                  foreground: sourceButton.selected
+                    ? Style.selectedStateColor(root.barForeground, Color.accent)
+                    : root.barForeground
+                  fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+                  fontPixelSize: Style.font.bodySmall
+                  fontBold: sourceButton.selected
+                  active: sourceButton.hot || sourceButton.isCurrent
+                }
+              }
             }
           }
 
           Column {
-            width: parent.width - Style.space(82)
-            spacing: Style.space(3)
-            anchors.verticalCenter: parent.verticalCenter
-
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              text: root.service && root.service.title ? root.service.title : "Nothing playing"
-              color: root.barForeground
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.subtitle
-              font.bold: true
-              elide: Text.ElideRight
-            }
-
-            Text {
-              width: parent.width
-              visible: text !== ""
-              textFormat: Text.PlainText
-              text: root.service ? root.service.artist : ""
-              color: Qt.darker(root.barForeground, 1.35)
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.bodySmall
-              elide: Text.ElideRight
-            }
-
-            Text {
-              width: parent.width
-              textFormat: Text.PlainText
-              text: root.service ? root.service.identity : ""
-              color: Qt.darker(root.barForeground, 1.55)
-              font.family: root.bar ? root.bar.fontFamily : Style.font.family
-              font.pixelSize: Style.font.caption
-              elide: Text.ElideRight
-            }
-          }
-        }
-
-        BorderSurface {
-          width: parent.width
-          height: Style.space(88)
-          radius: Style.cornerRadius
-          color: Style.normalFillFor(root.barForeground, Color.accent)
-          borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
-
-          Waveform {
-            anchors.fill: parent
-            anchors.margins: Style.space(12)
-            barCount: 24
-            samples: root.service ? root.service.samples : []
-            active: root.playing
-            live: root.service ? root.service.receivingFrames : false
-            foreground: root.barForeground
-            gap: Style.space(2)
-            minimumBarHeight: Style.space(2)
-          }
-        }
-
-        Text {
-          width: parent.width
-          textFormat: Text.PlainText
-          text: root.captureMessage()
-          color: Qt.darker(root.barForeground, 1.4)
-          font.family: root.bar ? root.bar.fontFamily : Style.font.family
-          font.pixelSize: Style.font.caption
-          horizontalAlignment: Text.AlignHCenter
-          wrapMode: Text.WordWrap
-        }
-
-        Row {
-          width: parent.width
-          visible: root.hasLength
-          spacing: Style.space(6)
-
-          Text {
-            width: Style.space(42)
-            text: root.formatDuration(positionSlider.dragging ? positionSlider.liveValue : root.displayedPosition)
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-            anchors.verticalCenter: parent.verticalCenter
-          }
-
-          PanelSlider {
-            id: positionSlider
-            width: parent.width - Style.space(90)
-            bar: root.bar
-            minimum: 0
-            maximum: root.player ? Math.max(1, Number(root.player.length) || 1) : 1
-            value: root.displayedPosition
-            step: 5
-            onMoved: function(value) { root.displayedPosition = value }
-            onReleased: function(value) {
-              if (root.service) root.service.seekTo(value)
-              root.displayedPosition = value
-            }
-          }
-
-          Text {
-            width: Style.space(42)
-            text: root.formatDuration(root.player ? root.player.length : 0)
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.caption
-            horizontalAlignment: Text.AlignRight
-            anchors.verticalCenter: parent.verticalCenter
-          }
-        }
-
-        Row {
-          anchors.horizontalCenter: parent.horizontalCenter
-          spacing: Style.space(8)
-
-          Button {
-            iconText: "󰒮"
-            foreground: root.barForeground
-            enabled: root.player && root.player.canGoPrevious
-            opacity: enabled ? 1 : 0.35
-            tooltipText: "Previous (P)"
-            onClicked: if (root.service) root.service.runAction("previous")
-          }
-
-          Button {
-            iconText: root.playing ? "󰏤" : "󰐊"
-            foreground: root.barForeground
-            iconSize: Style.font.iconLarge
-            horizontalPadding: Style.spacing.panelGap
-            enabled: root.player && (root.player.canTogglePlaying || root.player.canPlay || root.player.canPause)
-            opacity: enabled ? 1 : 0.35
-            tooltipText: root.playing ? "Pause (Space)" : "Play (Space)"
-            onClicked: if (root.service) root.service.runAction("playPause")
-          }
-
-          Button {
-            iconText: "󰒭"
-            foreground: root.barForeground
-            enabled: root.player && root.player.canGoNext
-            opacity: enabled ? 1 : 0.35
-            tooltipText: "Next (N)"
-            onClicked: if (root.service) root.service.runAction("next")
-          }
-        }
-
-        Row {
-          width: parent.width
-          visible: root.service && root.service.volumeSupported
-          spacing: Style.space(8)
-
-          Text {
-            text: "󰕾"
-            color: root.barForeground
-            font.family: root.bar ? root.bar.fontFamily : Style.font.family
-            font.pixelSize: Style.font.body
-            anchors.verticalCenter: parent.verticalCenter
-          }
-
-          PanelSlider {
-            width: parent.width - Style.space(28)
-            bar: root.bar
-            minimum: 0
-            maximum: 1
-            step: 0.05
-            value: root.service ? root.service.volume : 0
-            onMoved: function(value) { if (root.service) root.service.setVolume(value) }
-            onReleased: function(value) { if (root.service) root.service.setVolume(value) }
-          }
-        }
-
-        PanelSeparator {
-          visible: root.service && root.service.focusedPlayers.length > 1
-          foreground: root.barForeground
-        }
-
-        Column {
-          id: sourceList
-          width: parent.width
-          visible: root.service && root.service.focusedPlayers.length > 1
-          spacing: Style.space(4)
-
-          PanelSectionHeader {
-            text: "Media sources"
-            foreground: root.barForeground
-          }
-
-          ListView {
-            id: sourceView
             width: parent.width
-            height: Math.min(contentHeight, Style.space(210))
+            visible: root.showSettings
             spacing: Style.space(4)
-            clip: true
-            boundsBehavior: Flickable.StopAtBounds
-            interactive: contentHeight > height
 
-            QQC.ScrollBar.vertical: QQC.ScrollBar { policy: QQC.ScrollBar.AsNeeded }
-
-            model: root.service
-              ? root.service.focusedPlayers.slice(0, root.service.maxPlayers) : []
-
-            delegate: Button {
-              id: sourceButton
-              required property var modelData
-              required property int index
-              readonly property var sourcePlayer: modelData
-              readonly property bool isCurrent: root.player && root.service
-                && root.service.playerKey(root.player) === root.service.playerKey(sourcePlayer)
-              readonly property string sourceTitle: root.service
-                ? (root.service.playerTitle(sourcePlayer)
-                  || root.service.playerIdentity(sourcePlayer) || "Media") : "Media"
-              readonly property string sourceArtist: root.service
-                ? root.service.playerArtist(sourcePlayer) : ""
-
-              width: ListView.view.width
-              height: sourceButton.implicitHeight
-              clip: true
-              leftAlign: true
+            PanelSeparator {
               foreground: root.barForeground
-              selected: isCurrent
-              iconText: sourcePlayer && sourcePlayer.isPlaying ? "󰏤" : "󰐊"
-              text: ""
-              tooltipText: sourceTitle + (sourceArtist ? " — " + sourceArtist : "")
-              onClicked: if (root.service) root.service.selectAndPlay(root.service.playerKey(sourcePlayer))
+            }
 
-              MarqueeText {
-                z: 1
-                anchors.left: parent.left
-                anchors.leftMargin: sourceButton.horizontalPadding + Style.space(22)
-                anchors.right: parent.right
-                anchors.rightMargin: sourceButton.horizontalPadding
-                anchors.verticalCenter: parent.verticalCenter
-                height: implicitHeight
-                text: sourceButton.sourceTitle
-                foreground: sourceButton.selected
-                  ? Style.selectedStateColor(root.barForeground, Color.accent)
-                  : root.barForeground
-                fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
-                fontPixelSize: Style.font.bodySmall
-                fontBold: sourceButton.selected
-                active: sourceButton.hot || sourceButton.isCurrent
-              }
+            PanelSectionHeader {
+              text: "Settings"
+              foreground: root.barForeground
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show track title"
+              description: "Show the scrolling track title beside the waveform."
+              checked: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showTitle",
+                String(root.setting("showTitle", true)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show artist in title"
+              description: "Show the artist name after the track title."
+              checked: String(root.setting("showArtist", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showArtist",
+                String(root.setting("showArtist", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showTitle", true)).toLowerCase() === "true"
+              label: "Show full track info"
+              description: "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles."
+              checked: String(root.setting("showFullTitle", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showFullTitle",
+                String(root.setting("showFullTitle", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show album cover"
+              description: "Show the album art thumbnail between the waveform and the track title when a cover is available."
+              checked: String(root.setting("showCover", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showCover",
+                String(root.setting("showCover", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Show playback controls"
+              description: "Show previous, play/pause, and next buttons in the bar."
+              checked: String(root.setting("showControls", true)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("showControls",
+                String(root.setting("showControls", true)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              visible: String(root.setting("showControls", true)).toLowerCase() === "true"
+              label: "Group playback controls"
+              description: "Keep previous next to play/pause and next, beside the waveform."
+              checked: String(root.setting("groupControls", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("groupControls",
+                String(root.setting("groupControls", false)).toLowerCase() !== "true")
+            }
+
+            Toggle {
+              width: parent.width
+              label: "Hide when paused"
+              description: "Remove WaveBar from the bar while playback is paused."
+              checked: String(root.setting("hideWhenPaused", false)).toLowerCase() === "true"
+              foreground: root.barForeground
+              accent: Color.accent
+              fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
+              onClicked: root.setBooleanSetting("hideWhenPaused",
+                String(root.setting("hideWhenPaused", false)).toLowerCase() !== "true")
             }
           }
         }

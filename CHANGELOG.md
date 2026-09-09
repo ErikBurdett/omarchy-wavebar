@@ -1,5 +1,41 @@
 # Changelog
 
+## Unreleased
+
+### Media and interface
+
+- Added a `showArtist` setting to display the artist name after the track title
+  in the widget (matching the panel tooltip).
+- Added a `showFullTitle` setting to show the whole track title without
+  truncating or horizontal scrolling.
+- Added a `showCover` setting to show the album art thumbnail between the
+  waveform and the track title, and as the panel header art.
+- Added a `groupControls` setting to keep the previous/play/pause/next buttons
+  grouped beside the waveform instead of splitting previous to the far side.
+- Added an in-panel **Settings** section (behind a cog button) that toggles
+  title, artist, full-title, album-cover, controls, grouped-controls, and
+  hide-when-paused options.
+- Used squared theming for the waveform bars and progress/volume controls via a
+  plugin-local `WavebarSlider`, keeping other Omarchy panels' sliders unchanged.
+- Corrected panel tooltips to use the bar's native tooltip targets and made the
+  previous button tooltip switch targets when controls are grouped.
+
+### Security
+
+- Reintroduced opt-in album art with a hardened allowlist: only local files and
+  trusted cover CDNs (Apple Music, Spotify, YouTube, Tidal/Deezer) over HTTPS
+  are ever loaded; all other MPRIS-provided URLs are rejected and treated as no
+  cover. The rules live in `MediaModel.js`, so bar and panel share one check and
+  the CI unit tests can reach it.
+- Matched cover hosts on the parsed authority rather than the raw URL string.
+  The string test refused legitimate URLs (an uppercase host, an explicit port)
+  and accepted an authority obscured by a backslash or embedded credentials.
+- Refused local pseudo-file paths (`/proc`, `/sys`, `/dev`) as cover art, where
+  a read is unbounded or returns process state instead of an image.
+- Read `showControls`, `showTitle`, and `hideWhenPaused` the same string-safe
+  way as the other four settings. A hand-edited `shell.json` can hold the string
+  `"true"`, which the widget read as off while the panel's switch read it as on.
+
 ## 1.0.3 — 2026-09-04
 
 ### Media and interface

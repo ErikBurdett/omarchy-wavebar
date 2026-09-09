@@ -157,4 +157,53 @@ assert.equal(model.frameChunk("", "x".repeat(385)).ok, false)
 assert.equal(model.frameChunk("", "x".repeat(model.maxRawChunkChars() + 1)).ok, false)
 assert.equal(model.frameChunk("", "\n".repeat(33)).ok, false)
 
+// Album art allowlist. Every case below is one a player can put in
+// `mpris:artUrl`, so each is a claim the README makes about what gets loaded.
+const art = model.isSafeTrackArt
+
+// Trusted cover CDNs, over HTTPS.
+assert.equal(art("https://i.scdn.co/image/ab67616d"), true)
+assert.equal(art("https://is1-ssl.mzstatic.com/image/thumb/x.jpg"), true)
+assert.equal(art("https://i.ytimg.com/vi/x/hqdefault.jpg"), true)
+assert.equal(art("https://resources.tidal.com/images/x.jpg"), true)
+assert.equal(art("https://e-cdns-images.dzcdn.net/images/cover/x.jpg"), true)
+
+// The authority is parsed, not string-matched: case and an explicit port are
+// legitimate and must be accepted.
+assert.equal(art("https://I.SCDN.CO/image/ab"), true)
+assert.equal(art("https://i.scdn.co:8443/image/ab"), true)
+
+// ...and an authority hidden behind a backslash or credentials is not.
+assert.equal(art("https://evil.com\\.scdn.co/x.png"), false)
+assert.equal(art("https://i.scdn.co@evil.com/x.png"), false)
+assert.equal(art("https://evilscdn.co/x.png"), false)
+assert.equal(art("https://scdn.co.evil.com/x.png"), false)
+
+// Unlisted hosts, plaintext, and non-HTTP schemes are refused.
+assert.equal(art("https://evil.example/x.png"), false)
+assert.equal(art("http://i.scdn.co/image/ab"), false)
+assert.equal(art("data:image/png;base64,iVBORw0KGgo="), false)
+assert.equal(art("javascript:alert(1)"), false)
+assert.equal(art(""), false)
+assert.equal(art(null), false)
+assert.equal(art("https://i.scdn.co/" + "x".repeat(2048)), false)
+
+// Local files are allowed, but not the pseudo-filesystems, where a read is
+// unbounded (/dev/zero) or is process state rather than a picture.
+assert.equal(art("/home/user/.cache/cover.png"), true)
+assert.equal(art("file:///home/user/.cache/cover.png"), true)
+assert.equal(art("file://localhost/home/user/cover.png"), true)
+assert.equal(art("file://evil.example/home/user/cover.png"), false)
+assert.equal(art("/dev/zero"), false)
+assert.equal(art("/proc/self/environ"), false)
+assert.equal(art("/sys/kernel/notes"), false)
+assert.equal(art("file:///proc/self/environ"), false)
+assert.equal(art("file:///proc/self/../self/environ"), false)
+// Percent-encoding must not smuggle a refused path past the prefix check.
+assert.equal(art("file:///%70roc/self/environ"), false)
+assert.equal(art("/tmp/../proc/self/environ"), false)
+
+assert.equal(model.safeTrackArt("https://i.scdn.co/image/ab"), "https://i.scdn.co/image/ab")
+assert.equal(model.safeTrackArt("/dev/zero"), "")
+
 console.log("MediaModel tests passed")

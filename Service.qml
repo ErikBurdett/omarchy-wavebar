@@ -36,6 +36,8 @@ Item {
   readonly property string artist: MediaModel.playerArtist(activePlayer)
   readonly property string album: MediaModel.playerAlbum(activePlayer)
   readonly property string identity: MediaModel.playerIdentity(activePlayer)
+  readonly property string trackArtUrl: safeTrackArt(activePlayer && activePlayer.trackArtUrl
+    ? activePlayer.trackArtUrl : "")
 
   // Matching player metadata to PipeWire nodes is the most expensive model
   // pass. Reuse one bounded result for capture and volume instead of scoring
@@ -81,6 +83,13 @@ Item {
   function playerTitle(player) { return MediaModel.playerTitle(player) }
   function playerArtist(player) { return MediaModel.playerArtist(player) }
   function playerIdentity(player) { return MediaModel.playerIdentity(player) }
+
+  // Album art hardening: only local files or trusted cover CDNs (Spotify,
+  // YouTube, Apple Music, Tidal/Deezer) are ever loaded, so an untrusted URL
+  // supplied by a media player never reaches an Image. The rules live in
+  // MediaModel.js, where the CI unit tests can reach them.
+  function isSafeTrackArt(url) { return MediaModel.isSafeTrackArt(url) }
+  function safeTrackArt(url) { return MediaModel.safeTrackArt(url) }
 
   function playerKey(player) {
     return MediaModel.playerKey(player)

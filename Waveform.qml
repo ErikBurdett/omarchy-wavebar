@@ -35,7 +35,7 @@ Item {
       width: Math.max(1, slotWidth - root.gap)
       height: Math.max(root.minimumBarHeight, Math.round(root.height * (0.08 + level * 0.92)))
       y: Math.round((root.height - height) / 2)
-      radius: width / 2
+      radius: 0
       color: root.foreground
       opacity: root.live ? 0.95 : (root.active ? 0.48 : 0.28)
 

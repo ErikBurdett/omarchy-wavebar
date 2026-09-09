@@ -26,7 +26,11 @@
       "showTitle": true,
       "hideWhenPaused": false,
       "waveformWidth": 72,
-      "maxTitleWidth": 150
+      "maxTitleWidth": 150,
+      "showCover": false,
+      "showArtist": false,
+      "showFullTitle": false,
+      "groupControls": false
     },
     "schema": [
       {
@@ -37,6 +41,13 @@
         "defaultValue": true
       },
       {
+        "key": "groupControls",
+        "type": "boolean",
+        "label": "Group playback controls",
+        "description": "Place the previous/play/next buttons in one tight group next to the media info instead of separating previous from the rest.",
+        "defaultValue": false
+      },
+      {
         "key": "showTitle",
         "type": "boolean",
         "label": "Show track title",
@@ -44,10 +55,31 @@
         "defaultValue": true
       },
       {
+        "key": "showArtist",
+        "type": "boolean",
+        "label": "Show artist in title",
+        "description": "Include the artist name after the track title in the scrolling text.",
+        "defaultValue": false
+      },
+      {
         "key": "hideWhenPaused",
         "type": "boolean",
         "label": "Hide when paused",
         "description": "Remove WaveBar from the bar while the selected media source is paused.",
+        "defaultValue": false
+      },
+      {
+        "key": "showFullTitle",
+        "type": "boolean",
+        "label": "Show full track info",
+        "description": "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles.",
+        "defaultValue": false
+      },
+      {
+        "key": "showCover",
+        "type": "boolean",
+        "label": "Show album cover",
+        "description": "Show the album art thumbnail between the waveform and the track title when a cover is available.",
         "defaultValue": false
       },
       {
