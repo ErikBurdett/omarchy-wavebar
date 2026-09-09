@@ -1,3 +1,18 @@
+pragma ComponentBehavior: Bound
+
+// Vendored from Omarchy's Ui/PanelSlider.qml (v4.0.2), changed only in the
+// three `radius` values that square off the track, fill, and knob. WaveBar
+// needs squared controls without restyling every other Omarchy panel, so the
+// component is copied rather than themed in place. Re-sync this file when
+// upstream PanelSlider changes; the diff against it should stay at those
+// three lines plus this header and the pragma above.
+//
+// The pragma is not upstream's. Omarchy's copy is never linted by this
+// repository, so vendoring it brought in unqualified access to `root` and
+// `track` from inside the tick Repeater's delegate — six warnings under the
+// `qml` CI job. Binding the delegate scope resolves them the way the rest of
+// this codebase already does.
+
 import QtQuick
 import qs.Commons
 import qs.Ui

@@ -410,8 +410,118 @@ function frameChunk(remainder, incoming) {
   return { ok: true, frames: frames, remainder: tail }
 }
 
+// ---------------------------------------------------------------------------
+// Album art
+//
+// `mpris:artUrl` is attacker-influenced: any player on the bus can put any
+// string there, and whatever survives this check is handed to a QML Image in
+// the resident shell. So the check fails closed — anything not positively
+// recognised is not art.
+//
+// Hosts are matched against the *parsed* authority. Matching the raw URL text
+// both refused legitimate URLs (an uppercase host, an explicit port) and
+// accepted "https://evil.com\.scdn.co/x.png", where the backslash hides the
+// real authority from a suffix test.
+
+var MAX_ART_URL_LENGTH = 2048
+
+// Exact hosts, then suffixes. A suffix must keep its leading dot, or
+// ".scdn.co" would also match "evilscdn.co".
+var ART_HOSTS = ["i.ytimg.com", "e-cdns-images.dzcdn.net"]
+var ART_HOST_SUFFIXES = [
+  ".mzstatic.com",          // Apple Music
+  ".scdn.co",               // Spotify
+  ".ytimg.com",             // YouTube
+  ".ggpht.com",             // YouTube
+  ".googleusercontent.com", // YouTube
+  ".tidal.com",             // Tidal
+  ".dzcdn.net"              // Deezer
+]
+
+// Kernel and device filesystems are not image sources: reading /dev/zero never
+// ends, and /proc/self/environ is process state rather than a picture. A player
+// can name any local path, so these are refused before one reaches an Image.
+var UNSAFE_ART_PREFIXES = ["/proc/", "/sys/", "/dev/"]
+var UNSAFE_ART_ROOTS = ["/proc", "/sys", "/dev"]
+
+function isSafeArtHost(host) {
+  if (host === "") return false
+  for (var i = 0; i < ART_HOSTS.length; i++)
+    if (host === ART_HOSTS[i]) return true
+  for (var j = 0; j < ART_HOST_SUFFIXES.length; j++)
+    if (host.length > ART_HOST_SUFFIXES[j].length
+      && host.indexOf(ART_HOST_SUFFIXES[j], host.length - ART_HOST_SUFFIXES[j].length) >= 0)
+      return true
+  return false
+}
+
+function isSafeArtPath(path) {
+  if (path === "" || path.charAt(0) !== "/") return false
+  if (path.indexOf("\0") >= 0) return false
+  // Refused rather than normalised: resolving "/tmp/../proc/self/environ" here
+  // would have to agree exactly with what the kernel later does with it, and
+  // disagreeing is how the prefix list below gets walked around.
+  if (path.indexOf("/../") >= 0 || path === ".." || path.indexOf("/..", path.length - 3) >= 0)
+    return false
+  for (var i = 0; i < UNSAFE_ART_ROOTS.length; i++)
+    if (path === UNSAFE_ART_ROOTS[i]) return false
+  for (var j = 0; j < UNSAFE_ART_PREFIXES.length; j++)
+    if (path.indexOf(UNSAFE_ART_PREFIXES[j]) === 0) return false
+  return true
+}
+
+function isSafeTrackArt(url) {
+  if (typeof url !== "string" || url === "" || url.length > MAX_ART_URL_LENGTH) return false
+  // A backslash is never significant in a URL we would accept, and is the
+  // cheapest way to hide an authority from a parser that differs from Qt's.
+  if (url.indexOf("\\") >= 0) return false
+
+  if (url.indexOf("file://") === 0) {
+    var rest = url.slice(7)
+    var slash = rest.indexOf("/")
+    if (slash !== 0) {
+      // file://host/path — only an empty or local authority names our disk.
+      if (slash < 0) return false
+      var authority = rest.slice(0, slash).toLowerCase()
+      if (authority !== "" && authority !== "localhost") return false
+      rest = rest.slice(slash)
+    }
+    var bare = rest.split("?")[0].split("#")[0]
+    try {
+      return isSafeArtPath(decodeURIComponent(bare))
+    } catch (e) {
+      return false // malformed percent-encoding
+    }
+  }
+
+  if (url.charAt(0) === "/") return isSafeArtPath(url)
+
+  var match = /^(https?):\/\/([^\/?#]*)/.exec(url)
+  if (!match) return false
+  var scheme = match[1]
+  var host = match[2].toLowerCase()
+
+  // Credentials put the real host after an "@", where a suffix test on the
+  // whole authority would miss it. No cover CDN needs them, so refuse instead.
+  if (host.indexOf("@") >= 0) return false
+
+  // Strip a port, without cutting an IPv6 literal in half.
+  var colon = host.lastIndexOf(":")
+  if (colon >= 0 && host.indexOf("]") < colon) host = host.slice(0, colon)
+
+  if (host === "localhost" || host === "127.0.0.1" || host === "[::1]") return true
+  // Remote art is HTTPS only; plaintext would let the network substitute it.
+  return scheme === "https" && isSafeArtHost(host)
+}
+
+function safeTrackArt(url) {
+  return isSafeTrackArt(url) ? url : ""
+}
+
 if (typeof module !== "undefined") {
   module.exports = {
+    isSafeTrackArt: isSafeTrackArt,
+    safeTrackArt: safeTrackArt,
     normalized: normalized,
     boundedText: boundedText,
     isGenericTitle: isGenericTitle,

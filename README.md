@@ -121,16 +121,24 @@ title widths. The equivalent inline configuration is:
 - `/usr/bin/pw-record` from the `pipewire-audio` package
 - `/usr/bin/python3` and the Python 3 standard library from the `python` package
 
-WaveBar opens no network connections for waveform or media handling. Album art
-is the one optional exception: when the user enables cover display, only local
-`file://` paths and a known allowlist of trusted cover CDNs (Apple Music
-`mzstatic.com`, Spotify `scdn.co`, YouTube `yimg.com`/`ggpht.com`/
-`googleusercontent.com`, and Tidal/Deezer `tidal.com`/`dzcdn.net`) are loaded.
-All other MPRIS-provided URLs — remote hosts, `data:`, special files, and
-oversized sources — are rejected and treated as no cover. WaveBar otherwise uses
-only local MPRIS and PipeWire services. Media collections, metadata fields,
-capture targets, waveform frames, and user-configurable widths all have explicit
-limits.
+A default install opens no network connections, and waveform and media handling
+never open one. Album art is the single exception, and it is opt-in: enabling
+`showCover` fetches cover art over HTTPS from a known allowlist of cover CDNs
+(Apple Music `mzstatic.com`, Spotify `scdn.co`, YouTube `ytimg.com`/`ggpht.com`/
+`googleusercontent.com`, and Tidal/Deezer `tidal.com`/`dzcdn.net`), alongside
+local image files.
+
+Every other URL a player offers is refused and treated as no cover: unlisted
+hosts, plaintext `http://`, `data:`, and local pseudo-file paths under `/proc`,
+`/sys`, and `/dev`, where a read is unbounded or returns process state rather
+than a picture. Hosts are matched on the parsed authority, so an uppercase host
+or an explicit port is still accepted, while an authority obscured by a
+backslash or embedded credentials is not. An allowed image is *not* size
+limited: a trusted CDN that serves an oversized file is served it.
+
+WaveBar otherwise uses only local MPRIS and PipeWire services. Media
+collections, metadata fields, capture targets, waveform frames, and
+user-configurable widths all have explicit limits.
 
 The service invokes fixed `/usr/bin/python3` and `/usr/bin/pw-record` paths with
 a cleared environment and no shell. Its helper validates system-executable

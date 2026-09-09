@@ -22,10 +22,19 @@
 
 ### Security
 
-- Reintroduced opt-in album art with a hardened allowlist: only local `file://`
-  paths and trusted cover CDNs (Apple Music, Spotify, YouTube, Tidal/Deezer) are
-  ever loaded; all other MPRIS-provided URLs are rejected and treated as no
-  cover. The allowlist lives on the service so bar and panel share one check.
+- Reintroduced opt-in album art with a hardened allowlist: only local files and
+  trusted cover CDNs (Apple Music, Spotify, YouTube, Tidal/Deezer) over HTTPS
+  are ever loaded; all other MPRIS-provided URLs are rejected and treated as no
+  cover. The rules live in `MediaModel.js`, so bar and panel share one check and
+  the CI unit tests can reach it.
+- Matched cover hosts on the parsed authority rather than the raw URL string.
+  The string test refused legitimate URLs (an uppercase host, an explicit port)
+  and accepted an authority obscured by a backslash or embedded credentials.
+- Refused local pseudo-file paths (`/proc`, `/sys`, `/dev`) as cover art, where
+  a read is unbounded or returns process state instead of an image.
+- Read `showControls`, `showTitle`, and `hideWhenPaused` the same string-safe
+  way as the other four settings. A hand-edited `shell.json` can hold the string
+  `"true"`, which the widget read as off while the panel's switch read it as on.
 
 ## 1.0.3 — 2026-09-04
 

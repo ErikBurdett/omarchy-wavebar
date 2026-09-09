@@ -84,29 +84,12 @@ Item {
   function playerArtist(player) { return MediaModel.playerArtist(player) }
   function playerIdentity(player) { return MediaModel.playerIdentity(player) }
 
-  // Album art hardening: only allow local files or trusted cover CDNs (Spotify,
-  // YouTube, Apple Music, Tidal/Deezer). Anything else is rejected so we never
-  // load an untrusted remote URL supplied by a media player.
-  function isSafeTrackArt(url) {
-    if (typeof url !== "string" || url === "") return false
-    if (url.startsWith("file://")) return true
-    if (url.startsWith("/")) return true
-    var m = /^https?:\/\/([^\/?#]+)/.exec(url)
-    if (!m) return false
-    var host = m[1]
-    if (host === "localhost" || host === "127.0.0.1") return true
-    if (host.endsWith(".mzstatic.com")) return true          // Apple Music
-    if (host.endsWith(".scdn.co")) return true               // Spotify
-    if (host === "i.ytimg.com" || host.endsWith(".ggpht.com")
-      || host.endsWith(".googleusercontent.com")) return true // YouTube
-    if (host.endsWith(".tidal.com") || host === "e-cdns-images.dzcdn.net"
-      || host.endsWith(".dzcdn.net")) return true            // Tidal / Deezer CDN
-    return false
-  }
-
-  function safeTrackArt(url) {
-    return isSafeTrackArt(url) ? url : ""
-  }
+  // Album art hardening: only local files or trusted cover CDNs (Spotify,
+  // YouTube, Apple Music, Tidal/Deezer) are ever loaded, so an untrusted URL
+  // supplied by a media player never reaches an Image. The rules live in
+  // MediaModel.js, where the CI unit tests can reach them.
+  function isSafeTrackArt(url) { return MediaModel.isSafeTrackArt(url) }
+  function safeTrackArt(url) { return MediaModel.safeTrackArt(url) }
 
   function playerKey(player) {
     return MediaModel.playerKey(player)

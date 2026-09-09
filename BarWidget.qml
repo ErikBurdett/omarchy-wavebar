@@ -11,13 +11,17 @@ BarWidget {
   readonly property var activePlayer: waveformService ? waveformService.activePlayer : null
   readonly property bool hasMedia: waveformService ? waveformService.hasMedia : false
   readonly property bool playing: waveformService ? waveformService.playing : false
-  readonly property bool showControls: setting("showControls", true) === true
-  readonly property bool showTitle: setting("showTitle", true) === true
+  // All seven toggles parse the same way. `shell.json` is hand-editable, so a
+  // toggle can arrive as the string "true" rather than a boolean; comparing
+  // with `=== true` would read that as off here while the panel's own switch
+  // read it as on, and the widget would disagree with its settings UI.
+  readonly property bool showControls: String(setting("showControls", true)).toLowerCase() === "true"
+  readonly property bool showTitle: String(setting("showTitle", true)).toLowerCase() === "true"
   readonly property bool showArtist: String(setting("showArtist", false)).toLowerCase() === "true"
   readonly property bool showFullTitle: String(setting("showFullTitle", false)).toLowerCase() === "true"
   readonly property bool groupControls: String(setting("groupControls", false)).toLowerCase() === "true"
   readonly property bool showCover: String(setting("showCover", false)).toLowerCase() === "true"
-  readonly property bool hideWhenPaused: setting("hideWhenPaused", false) === true
+  readonly property bool hideWhenPaused: String(setting("hideWhenPaused", false)).toLowerCase() === "true"
   readonly property real waveformWidth: Math.min(240,
     Math.max(40, Number(setting("waveformWidth", 72)) || 72))
   readonly property string artUrl: waveformService ? waveformService.trackArtUrl : ""
