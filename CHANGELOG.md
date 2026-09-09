@@ -1,6 +1,9 @@
 # Changelog
 
-## Unreleased
+## 1.1.0 — 2026-09-08
+
+Contributed by [@JaxonWright](https://github.com/JaxonWright) in
+[#1](https://github.com/ErikBurdett/omarchy-wavebar/pull/1).
 
 ### Media and interface
 

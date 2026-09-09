@@ -2,7 +2,7 @@
   "schemaVersion": 1,
   "id": "io.github.erikburdett.wavebar",
   "name": "WaveBar: Waveform Media Controller",
-  "version": "1.0.3",
+  "version": "1.1.0",
   "author": "Erik Burdett",
   "license": "MIT",
   "description": "A waveform media controller focused on meaningful browser and desktop-player sessions.",
