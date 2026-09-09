@@ -1,5 +1,20 @@
 # Changelog
 
+## 1.1.1 — 2026-09-08
+
+### Compatibility
+
+- Stopped depending on Omarchy's `omarchy.media` service. Omarchy 4.0.3
+  scopes first-party service access to plugins that declare the `bar`
+  capability, which made `firstPartyServiceFor("omarchy.media")` return null
+  for WaveBar and left the widget hidden. The plugin now reads MPRIS and
+  PipeWire directly through Quickshell's own singletons and reproduces the
+  same playback-stream matching and active-source selection, so WaveBar works
+  on all Omarchy 4.x releases before and after the capability change.
+- Fixed the panel's settings toggles, which stopped writing on Omarchy 4.0.3:
+  `mutateShellConfig` is now gated behind the full `bar` capability, so a
+  bar-widget plugin saves its own entry with `updateEntryInline` instead.
+
 ## 1.1.0 — 2026-09-08
 
 Contributed by [@JaxonWright](https://github.com/JaxonWright) in

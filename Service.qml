@@ -18,7 +18,7 @@ Item {
   property bool fatalHelperError: false
   readonly property bool helperRunning: visualizer.running
 
-  readonly property var mediaService: shell ? shell.firstPartyServiceFor("omarchy.media") : null
+  readonly property var mediaService: mediaSource
   readonly property int maxPlayers: MediaModel.maxPlayerCount()
   readonly property int maxStreams: MediaModel.maxStreamCount()
   readonly property var rawSourcePlayers: mediaService ? mediaService.sourcePlayers : []
@@ -301,6 +301,13 @@ Item {
     interval: 800
     repeat: false
     onTriggered: root.receivingFrames = false
+  }
+
+  // Omarchy 4.0.3 removed unfettered first-party service access for
+  // third-party plugins, so WaveBar supplies its own MPRIS/PipeWire surface
+  // instead of relying on firstPartyServiceFor("omarchy.media").
+  MediaSource {
+    id: mediaSource
   }
 
   Process {

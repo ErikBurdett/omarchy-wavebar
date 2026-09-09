@@ -30,9 +30,9 @@ desktop media players.
 
 ## How media filtering works
 
-WaveBar uses Omarchy's built-in `omarchy.media` MPRIS service and requires
-meaningful track metadata. Games and ordinary audio streams are not shown just
-because they make sound.
+WaveBar reads MPRIS and PipeWire directly and does not depend on Omarchy's
+built-in `omarchy.media` service. It requires meaningful track metadata. Games
+and ordinary audio streams are not shown just because they make sound.
 
 For the waveform, the selected player is matched to a PipeWire playback
 stream. A track-title or artist match wins. An app-only match is accepted only

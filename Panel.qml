@@ -55,7 +55,19 @@ Panel {
 
   function setBooleanSetting(key, value) {
     var shell = root.bar && root.bar.shell
-    if (!shell || typeof shell.mutateShellConfig !== "function") return
+    if (!shell) return
+    // Omarchy 4.0.3 gates mutateShellConfig behind full-bar capability, so a
+    // bar-widget plugin saves its own entry inline instead. updateEntryInline
+    // replaces the whole entry, so carry every current setting forward.
+    if (typeof shell.updateEntryInline === "function") {
+      var next = {}
+      if (Util.isPlainObject(root.settings)) {
+        for (var k in root.settings) if (k !== "id") next[k] = root.settings[k]
+      }
+      next[key] = !!value
+      if (shell.updateEntryInline(root.moduleName, next)) return
+    }
+    if (typeof shell.mutateShellConfig !== "function") return
     shell.mutateShellConfig(function(config) {
       if (!Util.isPlainObject(config.bar)) config.bar = {}
       if (!Util.isPlainObject(config.bar.layout)) config.bar.layout = {}
