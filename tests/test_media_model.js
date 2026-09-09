@@ -240,4 +240,29 @@ assert.equal(model.chooseActivePlayer("", [tabA, pausedB]), tabA)
 assert.equal(model.chooseActivePlayer("", []), null)
 assert.equal(model.chooseActivePlayer("", Array(17).fill(tabA)), null)
 
+// Play order: the source that started playing first stays selected while
+// several play at once (rule carried over from omarchy.media by @JaxonWright).
+const first = player({ dbusName: "org.mpris.MediaPlayer2.spotify", identity: "Spotify", isPlaying: true, trackTitle: "First" })
+const second = player({ dbusName: "org.mpris.MediaPlayer2.chromium.instance9", isPlaying: false, trackTitle: "Second" })
+let synced = model.syncPlayOrder([first, second], {}, 0)
+assert.deepEqual(synced, { order: { [first.dbusName]: 1 }, serial: 1 })
+const secondPlaying = Object.assign({}, second, { isPlaying: true })
+synced = model.syncPlayOrder([secondPlaying, first], synced.order, synced.serial)
+assert.deepEqual(synced.order, { [first.dbusName]: 1, [second.dbusName]: 2 })
+assert.equal(synced.serial, 2)
+// Bus order lists the newer player first; the older one still wins.
+assert.equal(model.chooseActivePlayer("", [secondPlaying, first], synced.order), first)
+// A playing pick still beats the play order.
+assert.equal(model.chooseActivePlayer(second.dbusName, [secondPlaying, first], synced.order), secondPlaying)
+// Pausing drops a player from the order; resuming it makes it the newest.
+synced = model.syncPlayOrder([secondPlaying, Object.assign({}, first, { isPlaying: false })], synced.order, synced.serial)
+assert.deepEqual(synced.order, { [second.dbusName]: 2 })
+synced = model.syncPlayOrder([secondPlaying, first], synced.order, synced.serial)
+assert.deepEqual(synced.order, { [second.dbusName]: 2, [first.dbusName]: 3 })
+assert.equal(model.chooseActivePlayer("", [secondPlaying, first], synced.order), secondPlaying)
+// Without any order, list position is the tie-breaker; bad inputs are inert.
+assert.equal(model.chooseActivePlayer("", [secondPlaying, first], null), secondPlaying)
+assert.deepEqual(model.syncPlayOrder(null, null, "x"), { order: {}, serial: 0 })
+assert.equal(model.syncPlayOrder({ length: 1, 0: first }, {}, 5).serial, 6)
+
 console.log("media model tests passed")

@@ -1,3 +1,5 @@
+pragma ComponentBehavior: Bound
+
 import QtQuick
 import Quickshell
 import Quickshell.Io
@@ -24,6 +26,8 @@ Item {
   // borrowing the first-party media service left this widget permanently
   // hidden (Omarchy 4.0). The source the user picked is remembered by key.
   property string preferredPlayerKey: ""
+  property var playOrder: ({})
+  property int playSerial: 0
   readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
   readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   readonly property int maxPlayers: MediaModel.maxPlayerCount()
@@ -36,7 +40,7 @@ Item {
   readonly property var playbackStreams: inputRejected ? [] : rawPlaybackStreams
   readonly property var focusedPlayers: MediaModel.focusedPlayers(sourcePlayers)
   readonly property var activePlayer: MediaModel.chooseActivePlayer(
-    preferredPlayerKey, focusedPlayers)
+    preferredPlayerKey, focusedPlayers, playOrder)
   readonly property bool hasMedia: activePlayer !== null
   readonly property bool playing: activePlayer ? !!activePlayer.isPlaying : false
   readonly property string title: MediaModel.playerTitle(activePlayer)
@@ -195,10 +199,14 @@ Item {
   }
 
   // Forget a pick once its player leaves the bus so a stale key cannot pin
-  // the selection to a source that no longer exists.
-  function pruneSelection() {
+  // the selection to a source that no longer exists, and refresh which
+  // players are playing and in what order they started.
+  function syncPlayers() {
     if (preferredPlayerKey !== "" && !MediaModel.playerForKey(mprisPlayers, preferredPlayerKey))
       preferredPlayerKey = ""
+    var synced = MediaModel.syncPlayOrder(mprisPlayers, playOrder, playSerial)
+    playSerial = synced.serial
+    playOrder = synced.order
   }
 
   function seekTo(position) {
@@ -329,7 +337,18 @@ Item {
 
   onCaptureTargetChanged: restartVisualizer()
   onPlayingChanged: restartVisualizer()
-  onMprisPlayersChanged: pruneSelection()
+  onMprisPlayersChanged: syncPlayers()
+
+  // Play order only changes when a player appears, leaves, or flips its
+  // playing state, so listen for exactly that instead of polling.
+  Instantiator {
+    model: root.mprisPlayers
+    delegate: Connections {
+      required property var modelData
+      target: modelData
+      function onIsPlayingChanged() { root.syncPlayers() }
+    }
+  }
 
   // Binding the playback streams keeps their PipeWire properties and volume
   // live; without a tracker the app-name matching sees empty metadata.
@@ -339,6 +358,7 @@ Item {
     // Quickshell type description omitting QProcess::ExitStatus. Qt owns and
     // disconnects this connection with the QML component.
     visualizer.exited.connect(root.handleVisualizerExited)
+    syncPlayers()
     restartVisualizer()
   }
   Component.onDestruction: root.shutdown()

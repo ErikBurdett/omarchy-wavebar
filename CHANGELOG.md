@@ -2,6 +2,11 @@
 
 ## 1.1.1 — 2026-09-09
 
+[@JaxonWright](https://github.com/JaxonWright) diagnosed this breakage first
+in [#3](https://github.com/ErikBurdett/omarchy-wavebar/issues/3) and fixed it
+in [#4](https://github.com/ErikBurdett/omarchy-wavebar/pull/4); the play-order
+rule below is carried over from that pull request.
+
 ### Fixed
 
 - WaveBar stayed hidden on Omarchy 4.0 even while media was playing. The shell
@@ -13,6 +18,9 @@
   scoped API refuses `mutateShellConfig` for anything but a full-bar plugin.
   They now save through `updateEntryInline`, the path the shell sanctions for
   a widget's own layout entry.
+- When several sources play at once, the one that started playing first stays
+  selected, as it did under the first-party media service, instead of the
+  widget following whichever player the bus happens to list first.
 
 ## 1.1.0 — 2026-09-08
 

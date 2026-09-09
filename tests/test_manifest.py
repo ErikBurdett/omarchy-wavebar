@@ -67,6 +67,8 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("PwObjectTracker { objects: root.playbackStreams }", service)
         self.assertNotIn("firstPartyServiceFor(", service)
         self.assertNotIn("mediaService", service)
+        self.assertIn("MediaModel.syncPlayOrder(", service)
+        self.assertIn("function onIsPlayingChanged() { root.syncPlayers() }", service)
 
         panel = (PLUGIN_DIR / "Panel.qml").read_text(encoding="utf-8")
         self.assertIn("shell.updateEntryInline(root.moduleName", panel)
@@ -85,7 +87,7 @@ class ManifestTests(unittest.TestCase):
         self.assertIn("visible: root.showControls", widget)
 
     def test_repeater_delegates_have_bound_component_behavior(self) -> None:
-        for filename in ("Panel.qml", "Waveform.qml"):
+        for filename in ("Panel.qml", "Waveform.qml", "Service.qml"):
             source = (PLUGIN_DIR / filename).read_text(encoding="utf-8")
             self.assertTrue(source.startswith("pragma ComponentBehavior: Bound\n"))
 

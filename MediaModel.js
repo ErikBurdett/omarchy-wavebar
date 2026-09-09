@@ -257,18 +257,52 @@ function playerForKey(players, key) {
   return null
 }
 
-// The source the user picked stays selected while it plays. When it pauses
-// and another focused source is playing, follow the audible one; otherwise
-// keep the pick so the panel does not jump between paused tabs.
-function chooseActivePlayer(preferredKey, focused) {
+// Play order: remember when each player started playing, as a rising serial
+// keyed by player key, so the source that started first can stay selected
+// while several play at once. A player drops out of the order when it pauses
+// or leaves the bus. Rule carried over from omarchy.media by @JaxonWright.
+function syncPlayOrder(players, order, serial) {
+  var list = toArray(players)
+  var current = order && typeof order === "object" ? order : {}
+  var nextSerial = Math.max(0, Math.floor(Number(serial) || 0))
+  var next = {}
+  for (var i = 0; i < list.length; i++) {
+    var player = list[i]
+    var key = playerKey(player)
+    if (!key || !player.isPlaying) continue
+    if (current[key] === undefined) {
+      nextSerial += 1
+      next[key] = nextSerial
+    } else {
+      next[key] = current[key]
+    }
+  }
+  return { order: next, serial: nextSerial }
+}
+
+// The source the user picked stays selected while it plays. Otherwise the
+// playing source that started first wins, so two audible tabs do not swap
+// the widget on an unrelated bus change. When nothing plays, keep the pick
+// so the panel does not jump between paused tabs.
+function chooseActivePlayer(preferredKey, focused, order) {
   var players = Array.isArray(focused) ? focused : []
   if (players.length > MAX_PLAYER_COUNT) return null
   var preferred = playerForKey(players, preferredKey)
   if (preferred && preferred.isPlaying) return preferred
+  var startedAt = order && typeof order === "object" ? order : {}
+  var oldest = null
+  var oldestOrder = 0
   for (var i = 0; i < players.length; i++) {
-    if (players[i].isPlaying) return players[i]
+    var player = players[i]
+    if (!player.isPlaying) continue
+    var value = startedAt[playerKey(player)]
+    var rank = value === undefined ? 1000 + i : Number(value)
+    if (!oldest || rank < oldestOrder) {
+      oldest = player
+      oldestOrder = rank
+    }
   }
-  return preferred || (players.length > 0 ? players[0] : null)
+  return oldest || preferred || (players.length > 0 ? players[0] : null)
 }
 
 function selectFocusedPlayer(activePlayer, sourcePlayers) {
@@ -605,6 +639,7 @@ if (typeof module !== "undefined") {
     playbackStreams: playbackStreams,
     playerForKey: playerForKey,
     chooseActivePlayer: chooseActivePlayer,
+    syncPlayOrder: syncPlayOrder,
     scoreStream: scoreStream,
     chooseCapture: chooseCapture,
     chooseVolumeNode: chooseVolumeNode,
