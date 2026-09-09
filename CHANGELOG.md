@@ -1,5 +1,19 @@
 # Changelog
 
+## 1.1.1 — 2026-09-09
+
+### Fixed
+
+- WaveBar stayed hidden on Omarchy 4.0 even while media was playing. The shell
+  now hands third-party plugins a scoped API whose `firstPartyServiceFor(
+  "omarchy.media")` is null for bar-widget plugins, so the service saw no
+  players. The service now owns its MPRIS and PipeWire state directly through
+  Quickshell instead of borrowing the first-party media service.
+- The in-panel settings toggles saved nothing on Omarchy 4.0, because the
+  scoped API refuses `mutateShellConfig` for anything but a full-bar plugin.
+  They now save through `updateEntryInline`, the path the shell sanctions for
+  a widget's own layout entry.
+
 ## 1.1.0 — 2026-09-08
 
 Contributed by [@JaxonWright](https://github.com/JaxonWright) in

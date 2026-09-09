@@ -1,12 +1,13 @@
 import QtQuick
 import Quickshell
 import Quickshell.Io
+import Quickshell.Services.Mpris
+import Quickshell.Services.Pipewire
 import "MediaModel.js" as MediaModel
 
 Item {
   id: root
 
-  property var shell: null
   property var manifest: null
   readonly property string pluginId: "io.github.erikburdett.wavebar"
   readonly property int sampleCount: 24
@@ -18,18 +19,24 @@ Item {
   property bool fatalHelperError: false
   readonly property bool helperRunning: visualizer.running
 
-  readonly property var mediaService: shell ? shell.firstPartyServiceFor("omarchy.media") : null
+  // WaveBar reads MPRIS and PipeWire itself. Omarchy's scoped plugin shell
+  // lends the first-party media service only to full-bar plugins, so
+  // borrowing the first-party media service left this widget permanently
+  // hidden (Omarchy 4.0). The source the user picked is remembered by key.
+  property string preferredPlayerKey: ""
+  readonly property var mprisPlayers: Mpris.players ? Mpris.players.values : []
+  readonly property var pipewireNodes: Pipewire.nodes ? Pipewire.nodes.values : []
   readonly property int maxPlayers: MediaModel.maxPlayerCount()
   readonly property int maxStreams: MediaModel.maxStreamCount()
-  readonly property var rawSourcePlayers: mediaService ? mediaService.sourcePlayers : []
-  readonly property var rawPlaybackStreams: mediaService ? mediaService.playbackStreams : []
+  readonly property var rawSourcePlayers: MediaModel.toArray(mprisPlayers)
+  readonly property var rawPlaybackStreams: MediaModel.playbackStreams(pipewireNodes)
   readonly property bool inputRejected: MediaModel.inputsOversized(
     rawSourcePlayers, rawPlaybackStreams)
   readonly property var sourcePlayers: inputRejected ? [] : rawSourcePlayers
   readonly property var playbackStreams: inputRejected ? [] : rawPlaybackStreams
   readonly property var focusedPlayers: MediaModel.focusedPlayers(sourcePlayers)
-  readonly property var activePlayer: MediaModel.selectFromFocusedPlayers(
-    mediaService ? mediaService.activePlayer : null, focusedPlayers)
+  readonly property var activePlayer: MediaModel.chooseActivePlayer(
+    preferredPlayerKey, focusedPlayers)
   readonly property bool hasMedia: activePlayer !== null
   readonly property bool playing: activePlayer ? !!activePlayer.isPlaying : false
   readonly property string title: MediaModel.playerTitle(activePlayer)
@@ -95,38 +102,103 @@ Item {
     return MediaModel.playerKey(player)
   }
 
+  function playerForKey(key) {
+    return MediaModel.playerForKey(focusedPlayers, key)
+  }
+
+  function playPlayer(player) {
+    if (!player) return false
+    if (player.canPlay) {
+      player.play()
+      return true
+    }
+    if (player.canTogglePlaying && !player.isPlaying) {
+      player.togglePlaying()
+      return true
+    }
+    return false
+  }
+
+  function pausePlayer(player) {
+    if (!player) return false
+    if (player.canPause) {
+      player.pause()
+      return true
+    }
+    if (player.canTogglePlaying && player.isPlaying) {
+      player.togglePlaying()
+      return true
+    }
+    return false
+  }
+
+  function runActionOn(player, action) {
+    if (!player) return false
+    if (action === "next") {
+      if (!player.canGoNext) return false
+      player.next()
+      return true
+    }
+    if (action === "previous") {
+      if (!player.canGoPrevious) return false
+      player.previous()
+      return true
+    }
+    if (action === "play") return playPlayer(player)
+    if (action === "pause") return pausePlayer(player)
+    if (action === "playPause") {
+      if (player.isPlaying ? pausePlayer(player) : playPlayer(player)) return true
+      if (!player.canTogglePlaying) return false
+      player.togglePlaying()
+      return true
+    }
+    return false
+  }
+
   function runAction(action) {
-    if (!mediaService || !activePlayer) return false
-    var key = playerKey(activePlayer)
-    return key !== "" && mediaService.runAction(action, false, key)
+    var player = activePlayer
+    if (!player || inputRejected) return false
+    var key = playerKey(player)
+    if (key === "") return false
+    var handled = runActionOn(player, action)
+    if (handled) preferredPlayerKey = key
+    return handled
   }
 
   function selectPlayer(key) {
-    if (!mediaService) return false
     var safeKey = MediaModel.playerKey({ dbusName: key })
-    return safeKey !== "" && mediaService.selectPlayer(safeKey)
+    if (safeKey === "" || !playerForKey(safeKey)) return false
+    preferredPlayerKey = safeKey
+    return true
   }
 
   // Clicking a source is an explicit playback request. Start that source even
   // when every player is paused, then pause the previously playing source so
   // switching does not leave two media sessions playing at once.
   function selectAndPlay(key) {
-    if (!mediaService || inputRejected) return false
+    if (inputRejected) return false
 
     var safeKey = MediaModel.playerKey({ dbusName: key })
     if (safeKey === "") return false
-    var next = mediaService.playerForKey(safeKey)
+    var next = playerForKey(safeKey)
     if (!next || !MediaModel.isFocusedMediaPlayer(next)) return false
 
     var current = activePlayer
     var currentKey = playerKey(current)
     var currentWasPlaying = current && current.isPlaying
-    if (!mediaService.selectPlayer(safeKey)) return false
+    if (!selectPlayer(safeKey)) return false
 
-    var started = next.isPlaying || mediaService.runAction("play", false, safeKey)
+    var started = next.isPlaying || playPlayer(next)
     if (started && currentWasPlaying && currentKey !== safeKey)
-      mediaService.pausePlayer(current)
+      pausePlayer(current)
     return started
+  }
+
+  // Forget a pick once its player leaves the bus so a stale key cannot pin
+  // the selection to a source that no longer exists.
+  function pruneSelection() {
+    if (preferredPlayerKey !== "" && !MediaModel.playerForKey(mprisPlayers, preferredPlayerKey))
+      preferredPlayerKey = ""
   }
 
   function seekTo(position) {
@@ -257,6 +329,11 @@ Item {
 
   onCaptureTargetChanged: restartVisualizer()
   onPlayingChanged: restartVisualizer()
+  onMprisPlayersChanged: pruneSelection()
+
+  // Binding the playback streams keeps their PipeWire properties and volume
+  // live; without a tracker the app-name matching sees empty metadata.
+  PwObjectTracker { objects: root.playbackStreams }
   Component.onCompleted: {
     // Connecting explicitly avoids a qmllint false positive caused by the
     // Quickshell type description omitting QProcess::ExitStatus. Qt owns and

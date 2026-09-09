@@ -53,24 +53,19 @@ Panel {
     return minutes + ":" + String(remainder).padStart(2, "0")
   }
 
+  // Omarchy's scoped plugin shell refuses whole-config mutation for anything
+  // but a full-bar plugin, so the toggles silently did nothing (Omarchy 4.0).
+  // updateEntryInline replaces this widget's own layout entry wholesale, so
+  // the current settings are carried across with the one key changed.
   function setBooleanSetting(key, value) {
     var shell = root.bar && root.bar.shell
-    if (!shell || typeof shell.mutateShellConfig !== "function") return
-    shell.mutateShellConfig(function(config) {
-      if (!Util.isPlainObject(config.bar)) config.bar = {}
-      if (!Util.isPlainObject(config.bar.layout)) config.bar.layout = {}
-      for (var region in config.bar.layout) {
-        var entries = config.bar.layout[region]
-        if (!Array.isArray(entries)) continue
-        for (var i = 0; i < entries.length; i++) {
-          var entry = entries[i]
-          if (entry && entry.id === root.moduleName) {
-            entry[key] = !!value
-            return
-          }
-        }
-      }
-    })
+    if (!shell || typeof shell.updateEntryInline !== "function") return false
+    var next = {}
+    var current = root.settings
+    if (current && typeof current === "object")
+      for (var k in current) if (k !== "id") next[k] = current[k]
+    next[key] = !!value
+    return shell.updateEntryInline(root.moduleName, next) === true
   }
 
   function captureMessage() {

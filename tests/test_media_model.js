@@ -207,3 +207,37 @@ assert.equal(model.safeTrackArt("https://i.scdn.co/image/ab"), "https://i.scdn.c
 assert.equal(model.safeTrackArt("/dev/zero"), "")
 
 console.log("MediaModel tests passed")
+
+// Direct PipeWire and MPRIS ownership (Omarchy 4.0 scoped plugin shell).
+assert.deepEqual(model.toArray(null), [])
+assert.deepEqual(model.toArray({ length: 2, 0: "a", 1: "b" }), ["a", "b"])
+assert.equal(model.playbackStreams({ length: 1, 0: stream({ isSink: true }) }).length, 1)
+assert.equal(model.isPlaybackStream(stream({ isSink: true })), true)
+assert.equal(model.isPlaybackStream(stream({ isSink: false, type: "AudioOutStream" })), true)
+assert.equal(model.isPlaybackStream(stream({ isSink: false, type: "AudioInStream" })), false)
+assert.equal(model.isPlaybackStream(stream({ isStream: false, isSink: true })), false)
+assert.deepEqual(model.playbackStreams(null), [])
+assert.equal(model.playbackStreams([
+  stream({ isSink: true }),
+  stream({ isSink: true, audio: null }),
+  stream({ isSink: false, type: "AudioInStream" }),
+  null
+]).length, 1)
+
+const tabA = player({ dbusName: "org.mpris.MediaPlayer2.chromium.instance1", isPlaying: false, trackTitle: "Tab A" })
+const tabB = player({ dbusName: "org.mpris.MediaPlayer2.chromium.instance2", isPlaying: true, trackTitle: "Tab B" })
+assert.equal(model.playerForKey([tabA, tabB], tabB.dbusName), tabB)
+assert.equal(model.playerForKey([tabA, tabB], ""), null)
+assert.equal(model.playerForKey([tabA, tabB], "x".repeat(257)), null)
+// The audible source wins over a paused pick.
+assert.equal(model.chooseActivePlayer(tabA.dbusName, [tabA, tabB]), tabB)
+// A playing pick stays selected.
+assert.equal(model.chooseActivePlayer(tabB.dbusName, [tabA, tabB]), tabB)
+// With nothing playing the pick is kept rather than jumping to the first.
+const pausedB = player({ dbusName: tabB.dbusName, isPlaying: false, trackTitle: "Tab B" })
+assert.equal(model.chooseActivePlayer(pausedB.dbusName, [tabA, pausedB]), pausedB)
+assert.equal(model.chooseActivePlayer("", [tabA, pausedB]), tabA)
+assert.equal(model.chooseActivePlayer("", []), null)
+assert.equal(model.chooseActivePlayer("", Array(17).fill(tabA)), null)
+
+console.log("media model tests passed")

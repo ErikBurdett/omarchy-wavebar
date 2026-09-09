@@ -214,6 +214,63 @@ function selectFromFocusedPlayers(activePlayer, focused) {
   return players.length > 0 ? players[0] : null
 }
 
+// WaveBar owns its MPRIS and PipeWire state. Omarchy's scoped plugin shell
+// only lends the first-party media service to full-bar plugins, so a
+// bar-widget plugin that asked for it would see nothing at all.
+function isPlaybackStream(node) {
+  if (!node || !node.isStream) return false
+  if (node.isSink === true) return true
+  var mediaClass = String(node.type || "")
+  return mediaClass.indexOf("Stream/Output/Audio") !== -1
+    || mediaClass.indexOf("AudioOutStream") !== -1
+    || mediaClass.indexOf("Output") !== -1
+}
+
+// Quickshell exposes Mpris.players.values and Pipewire.nodes.values as list
+// properties, not JavaScript arrays, and the bounded checks above reject
+// anything that is not a real array. Copy list-likes before using them.
+function toArray(values) {
+  if (Array.isArray(values)) return values
+  if (!values || typeof values.length !== "number") return []
+  var result = []
+  for (var i = 0; i < values.length; i++) result.push(values[i])
+  return result
+}
+
+function playbackStreams(nodes) {
+  var list = toArray(nodes)
+  var result = []
+  for (var i = 0; i < list.length; i++) {
+    var node = list[i]
+    if (node && isPlaybackStream(node) && node.audio) result.push(node)
+  }
+  return result
+}
+
+function playerForKey(players, key) {
+  var list = toArray(players)
+  var wanted = strictText(key, MAX_KEY_LENGTH)
+  if (!wanted) return null
+  for (var i = 0; i < list.length; i++) {
+    if (playerKey(list[i]) === wanted) return list[i]
+  }
+  return null
+}
+
+// The source the user picked stays selected while it plays. When it pauses
+// and another focused source is playing, follow the audible one; otherwise
+// keep the pick so the panel does not jump between paused tabs.
+function chooseActivePlayer(preferredKey, focused) {
+  var players = Array.isArray(focused) ? focused : []
+  if (players.length > MAX_PLAYER_COUNT) return null
+  var preferred = playerForKey(players, preferredKey)
+  if (preferred && preferred.isPlaying) return preferred
+  for (var i = 0; i < players.length; i++) {
+    if (players[i].isPlaying) return players[i]
+  }
+  return preferred || (players.length > 0 ? players[0] : null)
+}
+
 function selectFocusedPlayer(activePlayer, sourcePlayers) {
   return selectFromFocusedPlayers(activePlayer, focusedPlayers(sourcePlayers))
 }
@@ -543,6 +600,11 @@ if (typeof module !== "undefined") {
     focusedPlayers: focusedPlayers,
     selectFromFocusedPlayers: selectFromFocusedPlayers,
     selectFocusedPlayer: selectFocusedPlayer,
+    toArray: toArray,
+    isPlaybackStream: isPlaybackStream,
+    playbackStreams: playbackStreams,
+    playerForKey: playerForKey,
+    chooseActivePlayer: chooseActivePlayer,
     scoreStream: scoreStream,
     chooseCapture: chooseCapture,
     chooseVolumeNode: chooseVolumeNode,

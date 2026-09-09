@@ -57,6 +57,25 @@ class ManifestTests(unittest.TestCase):
         )
         self.assertNotIn("onExited:", service)
 
+    def test_service_owns_media_state_and_panel_saves_settings(self) -> None:
+        # Omarchy 4.0 scopes the shell handed to third-party plugins: the
+        # first-party media service is null for bar-widget plugins and
+        # mutateShellConfig is refused. Both must stay out of this plugin.
+        service = (PLUGIN_DIR / "Service.qml").read_text(encoding="utf-8")
+        self.assertIn("import Quickshell.Services.Mpris", service)
+        self.assertIn("import Quickshell.Services.Pipewire", service)
+        self.assertIn("PwObjectTracker { objects: root.playbackStreams }", service)
+        self.assertNotIn("firstPartyServiceFor(", service)
+        self.assertNotIn("mediaService", service)
+
+        panel = (PLUGIN_DIR / "Panel.qml").read_text(encoding="utf-8")
+        self.assertIn("shell.updateEntryInline(root.moduleName", panel)
+        self.assertNotIn("mutateShellConfig", panel)
+
+    def test_version_has_changelog_entry(self) -> None:
+        changelog = (PLUGIN_DIR / "CHANGELOG.md").read_text(encoding="utf-8")
+        self.assertIn(f"## {self.manifest['version']} ", changelog)
+
     def test_widget_keeps_runtime_bounds_and_vertical_layout(self) -> None:
         widget = (PLUGIN_DIR / "BarWidget.qml").read_text(encoding="utf-8")
         self.assertIn("Math.min(240", widget)
