@@ -12,7 +12,7 @@ jobs:
     runs-on: ubuntu-latest
     timeout-minutes: 5
     steps:
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       - name: Validate manifest JSON
         run: /usr/bin/python3 -m json.tool manifest.json >/dev/null
@@ -49,14 +49,14 @@ jobs:
       - name: Install Qt QML tooling
         run: pacman -Syu --noconfirm --needed qt6-declarative quickshell git
 
-      - uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
 
       # qs.Commons and qs.Ui are root-relative Quickshell imports that only
       # resolve against an Omarchy shell tree, so standalone qmllint needs one
       # checked out beside the plugin. Pinned to a commit: an unpinned lint
       # dependency turns an upstream edit into a red build on an untouched PR.
       - name: Check out the Omarchy shell that supplies qs.Commons and qs.Ui
-        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
         with:
           repository: basecamp/omarchy
           ref: 346e69e1cec6c4e8924531874af6ba010a1bc99e # v4.0.2
