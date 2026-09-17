@@ -146,6 +146,47 @@ assert.equal(model.captureTarget({ name: "x".repeat(257) }), "")
 assert.equal(model.captureTarget({ name: "safe-node" }), "safe-node")
 assert.equal(model.captureTarget({ name: "unsafe\nnode" }), "")
 
+// Spotifast publishes no node.name, description or media.name, so the stream
+// is identifiable only by its process binary and reachable only by serial.
+const spotifastPlayer = player({
+  dbusName: "org.mpris.MediaPlayer2.fastpotify",
+  desktopEntry: "fastpotify",
+  identity: "Spotifast",
+  trackTitle: "Lost in the Moment",
+  trackArtist: "Darius",
+  trackAlbum: "Utopia",
+  isPlaying: true
+})
+const spotifastStream = stream({
+  name: "",
+  description: "",
+  properties: {
+    "application.name": "",
+    "media.name": "",
+    "application.process.binary": "fastpotify",
+    "object.serial": 221
+  }
+})
+
+assert.equal(model.scoreStream(spotifastPlayer, spotifastStream).app, 3)
+assert.equal(model.chooseCapture(spotifastPlayer, [spotifastStream]).reason, "unique-app")
+assert.equal(model.chooseCapture(spotifastPlayer, [spotifastStream]).node, spotifastStream)
+assert.equal(model.captureTarget(spotifastStream), "221")
+assert.equal(model.chooseVolumeNode(spotifastPlayer, [spotifastStream]).node, spotifastStream)
+
+// A usable name still wins, because it survives a stream reconnect.
+assert.equal(model.captureTarget(stream({
+  name: "Firefox",
+  properties: { "object.serial": 221 }
+})), "Firefox")
+
+// The serial is the only fallback accepted, and only as bare digits.
+assert.equal(model.captureTarget(stream({ name: "", properties: { "object.serial": "2 2 1" } })), "")
+assert.equal(model.captureTarget(stream({ name: "", properties: { "object.serial": "221; rm -rf" } })), "")
+assert.equal(model.captureTarget(stream({ name: "", properties: { "object.serial": "0" } })), "")
+assert.equal(model.captureTarget(stream({ name: "", properties: {} })), "")
+assert.equal(model.captureTarget({ name: "", ready: false, properties: { "object.serial": 221 } }), "")
+
 assert.deepEqual(model.parseFrame("0;0.5;1", 3), [0, 0.5, 1])
 assert.equal(model.parseFrame("0;wat;1", 3), null)
 

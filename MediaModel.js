@@ -313,10 +313,21 @@ function nodeProps(node) {
   return node && node.ready && node.properties ? node.properties : {}
 }
 
+// pw-record resolves --target as either a node.name or an object.serial. A
+// client that never names its stream leaves the serial as the only handle:
+// Spotifast publishes an empty node.name, description and media.name, so
+// keying capture on the name alone drops its waveform even though the stream
+// matched. Prefer the name, which survives a reconnect, and fall back to the
+// serial, which is digits only and so cannot carry an unsafe argument.
 function captureTarget(node) {
-  var value = strictText(node && node.name, MAX_NODE_LENGTH).trim()
-  if (!value || /[\u0000-\u001f\u007f]/.test(value)) return ""
-  return value
+  var name = strictText(node && node.name, MAX_NODE_LENGTH).trim()
+  if (name && !/[\u0000-\u001f\u007f]/.test(name)) return name
+  return captureSerial(node)
+}
+
+function captureSerial(node) {
+  var serial = strictText(nodeProps(node)["object.serial"], MAX_NODE_LENGTH).trim()
+  return /^[1-9][0-9]{0,18}$/.test(serial) ? serial : ""
 }
 
 function prop(props, name) {

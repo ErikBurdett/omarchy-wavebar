@@ -1,5 +1,15 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- The waveform stayed blank for players that publish an unnamed PipeWire
+  stream, such as Spotifast. The stream matched on its process binary, but
+  capture keyed on `node.name` alone, and an empty name produced an empty
+  `pw-record --target`. Capture now falls back to the node's `object.serial`,
+  which `pw-record` takes in place of a name.
+
 ## 1.1.1 — 2026-09-09
 
 [@JaxonWright](https://github.com/JaxonWright) diagnosed this breakage first
