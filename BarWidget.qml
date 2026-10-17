@@ -1,6 +1,7 @@
 import QtQuick
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 BarWidget {
@@ -97,7 +98,7 @@ BarWidget {
         enabled: root.actionEnabled("previous")
         opacity: enabled ? 1 : 0.35
         iconText: "󰒮"
-        foreground: root.bar ? root.bar.barForeground : Color.foreground
+        foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
         fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
         iconSize: Style.font.body
         horizontalPadding: Style.space(3)
@@ -132,7 +133,7 @@ BarWidget {
           samples: root.waveformService ? root.waveformService.samples : []
           active: root.playing
           live: root.waveformService ? root.waveformService.receivingFrames : false
-          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
           anchors.verticalCenter: parent.verticalCenter
         }
 
@@ -172,7 +173,7 @@ BarWidget {
               }
               return title
             }
-            foreground: root.bar ? root.bar.barForeground : Color.foreground
+            foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
             fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
             fontPixelSize: Style.font.bodySmall
             active: !root.opened && !root.showFullTitle
@@ -216,7 +217,7 @@ BarWidget {
           enabled: root.actionEnabled("previous")
           opacity: enabled ? 1 : 0.35
           iconText: "󰒮"
-          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
           iconSize: Style.font.body
           horizontalPadding: Style.space(3)
@@ -247,7 +248,7 @@ BarWidget {
           enabled: root.actionEnabled("playPause")
           opacity: enabled ? 1 : 0.35
           iconText: root.playing ? "󰏤" : "󰐊"
-          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
           iconSize: Style.font.body
           horizontalPadding: Style.space(3)
@@ -278,7 +279,7 @@ BarWidget {
           enabled: root.actionEnabled("next")
           opacity: enabled ? 1 : 0.35
           iconText: "󰒭"
-          foreground: root.bar ? root.bar.barForeground : Color.foreground
+          foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
           fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
           iconSize: Style.font.body
           horizontalPadding: Style.space(3)
@@ -309,7 +310,7 @@ BarWidget {
       visible: root.showControls
       enabled: root.actionEnabled("playPause")
       iconText: root.playing ? "󰏤" : "󰐊"
-      foreground: root.bar ? root.bar.barForeground : Color.foreground
+      foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
       fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
       iconSize: Style.font.body
       horizontalPadding: Style.space(3)
@@ -330,7 +331,7 @@ BarWidget {
         samples: root.waveformService ? root.waveformService.samples : []
         active: root.playing
         live: root.waveformService ? root.waveformService.receivingFrames : false
-        foreground: root.bar ? root.bar.barForeground : Color.foreground
+        foreground: root.bar ? root.bar.barForeground : Commons.Color.foreground
       }
 
       MouseArea {

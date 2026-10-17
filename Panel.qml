@@ -4,6 +4,7 @@ import QtQuick
 import QtQuick.Controls as QQC
 import Quickshell
 import qs.Commons
+import qs.Commons as Commons
 import qs.Ui
 
 Panel {
@@ -141,8 +142,8 @@ Panel {
               width: Style.space(72)
               height: Style.space(72)
               radius: Style.cornerRadius
-              color: Style.normalFillFor(root.barForeground, Color.accent)
-              borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
+              color: Style.normalFillFor(root.barForeground, Commons.Color.accent)
+              borderSpec: Border.controlSpec("normal", root.barForeground, Commons.Color.accent)
               clip: true
 
               Image {
@@ -207,8 +208,8 @@ Panel {
             width: parent.width
             height: Style.space(88)
             radius: Style.cornerRadius
-            color: Style.normalFillFor(root.barForeground, Color.accent)
-            borderSpec: Border.controlSpec("normal", root.barForeground, Color.accent)
+            color: Style.normalFillFor(root.barForeground, Commons.Color.accent)
+            borderSpec: Border.controlSpec("normal", root.barForeground, Commons.Color.accent)
 
             Waveform {
               anchors.fill: parent
@@ -410,7 +411,7 @@ Panel {
                   height: implicitHeight
                   text: sourceButton.sourceTitle
                   foreground: sourceButton.selected
-                    ? Style.selectedStateColor(root.barForeground, Color.accent)
+                    ? Style.selectedStateColor(root.barForeground, Commons.Color.accent)
                     : root.barForeground
                   fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
                   fontPixelSize: Style.font.bodySmall
@@ -441,7 +442,7 @@ Panel {
               description: "Show the scrolling track title beside the waveform."
               checked: String(root.setting("showTitle", true)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("showTitle",
                 String(root.setting("showTitle", true)).toLowerCase() !== "true")
@@ -454,7 +455,7 @@ Panel {
               description: "Show the artist name after the track title."
               checked: String(root.setting("showArtist", false)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("showArtist",
                 String(root.setting("showArtist", false)).toLowerCase() !== "true")
@@ -467,7 +468,7 @@ Panel {
               description: "Show the whole track title (and artist) without scrolling or clipping, instead of truncating and scrolling long titles."
               checked: String(root.setting("showFullTitle", false)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("showFullTitle",
                 String(root.setting("showFullTitle", false)).toLowerCase() !== "true")
@@ -479,7 +480,7 @@ Panel {
               description: "Show the album art thumbnail between the waveform and the track title when a cover is available."
               checked: String(root.setting("showCover", false)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("showCover",
                 String(root.setting("showCover", false)).toLowerCase() !== "true")
@@ -491,7 +492,7 @@ Panel {
               description: "Show previous, play/pause, and next buttons in the bar."
               checked: String(root.setting("showControls", true)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("showControls",
                 String(root.setting("showControls", true)).toLowerCase() !== "true")
@@ -504,7 +505,7 @@ Panel {
               description: "Keep previous next to play/pause and next, beside the waveform."
               checked: String(root.setting("groupControls", false)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("groupControls",
                 String(root.setting("groupControls", false)).toLowerCase() !== "true")
@@ -516,7 +517,7 @@ Panel {
               description: "Remove WaveBar from the bar while playback is paused."
               checked: String(root.setting("hideWhenPaused", false)).toLowerCase() === "true"
               foreground: root.barForeground
-              accent: Color.accent
+              accent: Commons.Color.accent
               fontFamily: root.bar ? root.bar.fontFamily : Style.font.family
               onClicked: root.setBooleanSetting("hideWhenPaused",
                 String(root.setting("hideWhenPaused", false)).toLowerCase() !== "true")
