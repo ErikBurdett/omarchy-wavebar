@@ -1,5 +1,17 @@
 # Changelog
 
+## Unreleased
+
+### Fixed
+
+- On Qt 6.12 the widget, panel and slider rendered unthemed. Qt 6.12 adds a
+  built-in `Color` singleton to QtQuick that shadows the `Color` palette from
+  `qs.Commons`, so every bare `Color.accent`, `Color.foreground` and
+  `Color.background` evaluated to `undefined`. The palette is now referenced
+  as `Commons.Color`, as the Omarchy shell itself does since
+  omacom/omarchy#14553
+  ([#6](https://github.com/ErikBurdett/omarchy-wavebar/issues/6)).
+
 ## 1.1.1 — 2026-09-09
 
 [@JaxonWright](https://github.com/JaxonWright) diagnosed this breakage first
